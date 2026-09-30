@@ -92,6 +92,22 @@ class Lab:
             r["agent_name"] = names.get(r["agent"], {}).get("name", r["agent"])
         return rows
 
+    def clear_today(self) -> dict:
+        """Undo today's slate so it can be run again: picks nobody acted on, their paper bets, the memo and chats.
+        Anything you placed, passed on, or that already has a result is kept."""
+        day = self.today()
+        keep_real = {r["pick_id"] for r in self.db.all("SELECT DISTINCT pick_id FROM bets WHERE kind='real'")}
+        rows = self.db.all("SELECT id FROM picks WHERE local_day=? AND decision IS NULL AND result IS NULL", (day,))
+        ids = [r["id"] for r in rows if r["id"] not in keep_real]
+        with self.db.tx() as c:
+            for pid in ids:
+                c.execute("DELETE FROM bets WHERE pick_id=? AND kind='paper'", (pid,))
+                c.execute("UPDATE picks SET group_id=NULL WHERE group_id=?", (pid,))
+                c.execute("DELETE FROM picks WHERE id=?", (pid,))
+            c.execute("DELETE FROM memos WHERE local_day=?", (day,))
+            c.execute("DELETE FROM watercooler WHERE day=? AND kind='morning'", (day,))
+        return {"picks": len(ids)}
+
     def open_earlier(self, day: str, now: datetime) -> list[dict]:
         rows = self.db.all("SELECT * FROM picks WHERE local_day<>? AND result IS NULL AND commence>? AND board_status<>'vetoed'", (day, iso(now)))
         names = roster.lookup(self.db)

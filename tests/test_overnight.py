@@ -241,3 +241,22 @@ class WaterCooler(unittest.TestCase):
             self.assertIsNone(cooler.chat(lab, "morning"))
             from lab.state import build_state
             self.assertEqual(build_state(s, lab.db)["cooler"][0]["kind"], "morning")
+
+
+class FreshSlate(unittest.TestCase):
+    def test_clear_today_keeps_what_you_acted_on(self):
+        from lab import ledger
+        with tempfile.TemporaryDirectory() as tmp:
+            s = settings(tmp)
+            lab = Lab(s, DB(s.db_path), brain=Brain(s))
+            day = lab.today()
+            for pid, decision in (("a", None), ("b", "passed"), ("c", None)):
+                lab.db.run("INSERT INTO picks(id,local_day,created_at,agent,event_id,sport,home,away,commence,market,selection,price,stake_units,decision) "
+                           "VALUES(?,?,?,'quinn',?,'americanfootball_nfl','H','A',?,'h2h','H',-110,1,?)", (pid, day, iso(), pid, iso(), decision))
+                ledger.paper_bet(lab.db, {"id": pid, "agent": "quinn", "stake_units": 1, "price": -110}, s, {})
+            ledger.place_real(lab.db, "c", -110, 1.0)
+            lab.db.run("INSERT INTO memos(local_day,text,created_at) VALUES(?,?,?)", (day, "m", iso()))
+            self.assertEqual(lab.clear_today()["picks"], 1)
+            self.assertEqual({r["id"] for r in lab.db.all("SELECT id FROM picks")}, {"b", "c"})
+            self.assertIsNone(lab.db.one("SELECT 1 FROM memos"))
+            self.assertIsNone(lab.db.one("SELECT 1 FROM bets WHERE pick_id='a'"))

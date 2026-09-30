@@ -22,6 +22,8 @@ def main(argv=None) -> int:
     rn = sub.add_parser("run", help="run a slate or rescan now (spends odds credits)")
     rn.add_argument("kind", choices=["slate", "rescan"])
     rn.add_argument("--manual", action="store_true", help="tag as a manual run so the daily schedule still happens")
+    rn.add_argument("--fresh", action="store_true", help="clear today's untouched picks, memo and chats, then redo the slate")
+    rn.add_argument("--extra-credits", type=int, default=0, help="allow this many odds credits past today's cap")
     sub.add_parser("tick", help="what cron runs every 15 minutes")
     sub.add_parser("grade", help="grade finished games (free)")
     sub.add_parser("closing", help="capture closing lines for games about to start")
@@ -65,8 +67,11 @@ def main(argv=None) -> int:
         from .pipeline import Lab
         lab = Lab(s, db)
         if args.cmd == "run":
+            s.daily_credit_cap += max(0, min(args.extra_credits, 30))
+            if args.fresh and args.kind == "slate":
+                print(f"cleared {lab.clear_today()}")
             # a manual slate counts as the day's slate unless one already ran
-            first_slate = args.kind == "slate" and not lab.ran("slate", lab.today())
+            first_slate = args.kind == "slate" and (args.fresh or not lab.ran("slate", lab.today()))
             out = lab.run(args.kind, tag=None if first_slate or not args.manual else "manual")
             out.pop("trace", None)
             print(json.dumps(out, indent=2, default=str))

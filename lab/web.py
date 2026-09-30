@@ -173,7 +173,10 @@ def create_app(settings=None, db: DB | None = None) -> Flask:
         running = db.one("SELECT id FROM runs WHERE status='running' AND started_at>?", (iso(utcnow() - timedelta(minutes=30)),))
         if running and kind != "grade":
             return jsonify(error="A run is already in progress"), 409
+        fresh = bool((request.get_json(silent=True) or {}).get("fresh")) and kind == "slate"
         args = [sys.executable, "-m", "lab", "grade" if kind == "grade" else "run", *([] if kind == "grade" else [kind, "--manual"])]
+        if fresh:
+            args += ["--fresh", "--extra-credits", "15"]
         flags = {"creationflags": 0x00000008 | 0x00000200} if os.name == "nt" else {"start_new_session": True}
         subprocess.Popen(args, cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=os.environ.copy(), **flags)
         return jsonify(ok=True, started=kind)
