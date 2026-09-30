@@ -27,7 +27,7 @@ log = logging.getLogger("lab.pipeline")
 PICK_COLUMNS = [
     "id", "run_id", "local_day", "created_at", "agent", "event_id", "sport", "home", "away", "commence", "market", "selection",
     "point", "player", "price", "fair_prob", "edge", "min_price", "books", "estimated", "stake_units", "confidence", "reasoning",
-    "signal", "board_status", "board_notes", "group_id", "ceo_rank", "real_pick", "paper_only", "late", "legs", "book", "prices",
+    "signal", "board_status", "board_notes", "group_id", "ceo_rank", "real_pick", "paper_only", "late", "legs", "book", "prices", "links",
 ]
 
 
@@ -221,7 +221,7 @@ class Lab:
             "min_price": floor_price(c), "books": c["books"], "estimated": bool(c.get("estimated")), "dispersion": c.get("dispersion"),
             "quote_at": c.get("quote_at"), "stake_units": float(choice["stake_units"]), "confidence": choice["confidence"],
             "reasoning": choice["reasoning"], "signal": choice["signal"], "late": int(late), "legs": None,
-            "book": c.get("book", "bovada"), "prices": c.get("prices"),
+            "book": c.get("book", "bovada"), "prices": c.get("prices"), "links": c.get("links"),
         }
 
     def _insert(self, picks: list[dict]) -> None:
@@ -231,6 +231,7 @@ class Lab:
                 row["board_notes"] = json.dumps(p.get("board_notes", []))
                 row["legs"] = json.dumps(p["legs"]) if p.get("legs") else None
                 row["prices"] = json.dumps(p["prices"]) if p.get("prices") else None
+                row["links"] = json.dumps(p["links"]) if p.get("links") else None
                 row["estimated"] = int(bool(p.get("estimated")))
                 row["paper_only"] = int(bool(p.get("paper_only")))
                 row["real_pick"] = int(bool(p.get("real_pick")))

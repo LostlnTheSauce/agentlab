@@ -282,3 +282,27 @@ class ParlayBooks(unittest.TestCase):
         self.assertEqual(ab["book"], "lowvig")  # 2.04*2.01 beats 2.00*2.02
         self.assertEqual(ab["price"], om.american_from_dec(2.04 * 2.01))
         self.assertFalse(any("c" in o["legs"] for o in opts))  # no single book has c with a or b
+
+
+class QuickBetLinks(unittest.TestCase):
+    def test_only_real_sportsbook_links_survive(self):
+        from lab.sources.odds import safe_link
+        self.assertEqual(safe_link("lowvig", "https://sports.lowvig.ag/sportsbook/football/nfl/game/1"), "https://sports.lowvig.ag/sportsbook/football/nfl/game/1")
+        self.assertEqual(safe_link("bovada", "https://www.bovada.lv/sports/football/nfl/x"), "https://www.bovada.lv/sports/football/nfl/x")
+        self.assertIsNone(safe_link("lowvig", "http://sports.lowvig.ag/x"))           # not https
+        self.assertIsNone(safe_link("lowvig", "https://lowvig.ag.evil.com/x"))        # look-alike host
+        self.assertIsNone(safe_link("lowvig", "https://sports.betonline.ag/x"))       # another book's domain
+        self.assertIsNone(safe_link("lowvig", "javascript:alert(1)"))
+
+    def test_candidates_carry_links(self):
+        from lab.sources.odds import build_candidates
+        commence = iso(datetime.now(timezone.utc) + timedelta(hours=6))
+
+        def book(key, link, home):
+            return {"key": key, "link": link, "last_update": iso(), "markets": [{"key": "h2h", "outcomes": [
+                {"name": "Home", "price": home}, {"name": "Away", "price": -150}]}]}
+        ev = {"id": "e", "sport_key": "americanfootball_nfl", "commence_time": commence, "home_team": "Home", "away_team": "Away",
+              "bookmakers": [book("bovada", "https://www.bovada.lv/g", 130), book("lowvig", "https://sports.lowvig.ag/g", 138),
+                             book("pinnacle", None, 136), book("draftkings", None, 130), book("fanduel", None, 132)]}
+        home = next(c for c in build_candidates([ev], "americanfootball_nfl", 3, my_books=["bovada", "lowvig"]) if c["selection"] == "Home")
+        self.assertEqual(home["links"], {"bovada": "https://www.bovada.lv/g", "lowvig": "https://sports.lowvig.ag/g"})

@@ -99,7 +99,8 @@
 
 <dialog id="placeDlg">
   <form method="dialog" id="placeForm">
-    <h3>PLACE ON BOVADA</h3>
+    <h3 id="placeTitle">PLACE THE BET</h3>
+    <div class="qcheck" id="placeCheck" hidden></div>
     <div id="placeWhat" class="mkt" style="font-size:22px"></div>
     <ol id="placeSteps"></ol>
     <div class="books" id="placeBooks" hidden></div>
@@ -109,7 +110,7 @@
     </div>
     <div class="win" id="placeWin"></div>
     <div class="warn" id="placeWarn"></div>
-    <div class="acts"><button class="teal" id="placeOk" value="ok">I PLACED IT</button><button id="placeCopy" type="button">COPY BET</button><button value="cancel" formnovalidate>CANCEL</button></div>
+    <div class="acts"><button class="teal" id="placeOk" value="ok">I PLACED IT</button><a class="golink" id="placeLink" target="_blank" rel="noopener noreferrer" hidden>OPEN</a><button id="placeCopy" type="button">COPY BET</button><button value="cancel" formnovalidate>CANCEL</button></div>
   </form>
 </dialog>
 

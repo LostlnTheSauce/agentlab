@@ -10,6 +10,7 @@ const cls=v=>v>0?'up':v<0?'down':'';
 const when=iso=>{const d=new Date(iso);return d.toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})};
 const ago=iso=>{const s=(Date.now()-new Date(iso))/1000;return s<90?Math.round(s)+'s ago':s<5400?Math.round(s/60)+'m ago':s<172800?Math.round(s/3600)+'h ago':Math.round(s/86400)+'d ago'};
 
+let quickBet=true;try{quickBet=localStorage.getItem('lab-quickbet')!=='off'}catch(e){}
 let openPaper=false,S=null,mode='paper',view='office',filt='all',sortKey='units',fetchedAt=0,people={};
 try{mode=localStorage.getItem('lab-mode')||'paper';view=localStorage.getItem('lab-view')||'office'}catch(e){}
 
@@ -230,7 +231,7 @@ function renderBooks(p){
   box.innerHTML='<b>WHERE YOU BET</b>'+books.map(b=>`<button type="button" data-book="${esc(b.key)}" class="${b.key===placeBook?'on':''}">${esc(b.name)}${quoted[b.key]?' '+esc(quoted[b.key]):''}</button>`).join('');
 }
 $('placeBooks').addEventListener('click',e=>{const b=e.target.closest('button[data-book]');if(!b)return;placeBook=b.dataset.book;
-  const q=(placing.prices||[]).find(x=>x.book===placeBook);if(q)$('placePrice').value=q.txt.replace('−','-');renderBooks(placing);checkPlace()});
+  const q=(placing.prices||[]).find(x=>x.book===placeBook);if(q)$('placePrice').value=q.txt.replace('−','-');renderBooks(placing);setLink(placing.links||{});checkPlace()});
 const parsePrice=s=>{const m=String(s).trim().replace('−','-').match(/^([+-]?)(\d{3,5})$/);if(!m)return null;const v=parseInt(m[2],10)*(m[1]==='-'?-1:1);return Math.abs(v)>=100?v:null};
 const dec=a=>a>0?1+a/100:1+100/-a;
 function openPlace(p){
@@ -241,7 +242,10 @@ function openPlace(p){
     p.min_price!=null?`Only bet if the price is <b>${esc(p.min_txt)}</b> or better. Worse than that, the edge is gone: cancel and pass.`:'No floor for this one; use your judgment.',
     `Bet ${money(p.stake_dollars)}, then enter the price you actually got.`].map(s=>`<li>${s}</li>`).join('');
   $('placePrice').value=p.price_txt.replace('−','-');$('placeStake').value=p.stake_dollars.toFixed(2);
+  setLink(p.links||{});
+  const qc=$('placeCheck');qc.hidden=!quickBet||p.market==='parlay';
   checkPlace();$('placeDlg').showModal();
+  if(quickBet&&p.market!=='parlay'){qc.className='qcheck wait';qc.textContent='Checking live prices at your books…';quickCheck(p)}
 }
 function checkPlace(){
   const pr=parsePrice($('placePrice').value),st=parseFloat($('placeStake').value);
@@ -252,6 +256,28 @@ function checkPlace(){
   $('placeWarn').textContent=w;
   $('placeWin').textContent=pr!=null&&st>0?`To win ${money(toWin(st,pr))} · pays ${money(st+toWin(st,pr))} total`:'';
   return {pr,st};
+}
+function setLink(links){
+  const a=$('placeLink'),url=quickBet?links[placeBook]:null;
+  a.hidden=!url;if(url){a.href=url;a.textContent='OPEN '+(bookNames[placeBook]||placeBook).toUpperCase()+' ↗'}
+}
+const bookNames={bovada:'Bovada',lowvig:'LowVig',betonlineag:'BetOnline',mybookieag:'MyBookie'};
+async function quickCheck(p){
+  const qc=$('placeCheck');
+  try{
+    const r=await api('api/pick/'+encodeURIComponent(p.id)+'/check',{});
+    if(placing!==p)return;
+    qc.className='qcheck '+r.status;qc.textContent=r.text;
+    if(r.status==='good'||(r.status==='worse'&&r.same_line)){
+      placeBook=r.book||placeBook;
+      const pr=(r.prices||{})[placeBook]??r.price;
+      $('placePrice').value=(pr>0?'+':'')+pr;
+      p.prices=Object.entries(r.prices||{}).map(([k,v])=>({book:k,name:bookNames[k]||k,price:v,txt:(v>0?'+':'')+v}));
+      p.links={...(p.links||{}),...(r.links||{})};
+      renderBooks(p);checkPlace();
+    }
+    setLink(p.links||{});
+  }catch(e){qc.className='qcheck moved';qc.textContent='Couldn\'t check prices ('+e.message+'). Check the price on the site before betting.'}
 }
 $('placePrice').addEventListener('input',checkPlace);$('placeStake').addEventListener('input',checkPlace);
 $('placeCopy').onclick=()=>{const s=`${placing.bet} ${placing.price_txt} · ${placing.game} · ${money(placing.stake_dollars)}`;
@@ -359,9 +385,12 @@ function ledgerView(){
     return `<div class="li"><div><b>${esc(r.kind.toUpperCase())}</b><div class="g">${esc(bits.join(' · ')||'—')}</div></div><div class="r ${r.status==='error'?'down':r.status==='ok'?'up':'q'}" style="font-size:16px">${esc(r.status)}<div class="g">${ago(r.started_at)}</div></div></div>`}).join('')
     :'<div class="q">No runs yet.</div>';
   const cf=S.config;
-  $('rules').innerHTML=`<p style="margin:0 0 6px">1 unit = ${money(cf.unit)}. Each tipster has a ${money(cf.wallet)} real wallet. The CEO recommends at most ${cf.max_real} real bets a day. Nobody bets without a Bovada price that beats the sharp consensus.</p>
+  $('rules').innerHTML=`<div class="btnrow" style="margin:0 0 8px"><button class="toggle ${quickBet?'on':''}" id="qbToggle">QUICK BET: ${quickBet?'ON':'OFF'}</button></div>
+    <p class="q" style="margin:0 0 8px;font-size:11px">${quickBet?'BET checks live prices at your books (1 credit) and links straight to the game.':'BET opens the plain manual dialog.'}</p>
+    <p style="margin:0 0 6px">1 unit = ${money(cf.unit)}. Each tipster has a ${money(cf.wallet)} real wallet. The CEO recommends at most ${cf.max_real} real bets a day. Nobody bets without a Bovada price that beats the sharp consensus.</p>
     <p class="q" style="margin:0">Slate at ${cf.slate_hour}:00, rescans at ${cf.rescan_hours.map(h=>h+':00').join(' and ')} (${esc(cf.tz)}). Sports: ${esc(cf.sports.join(', '))}. Claude: ${cf.llm?'on':'off (fallback)'}. Phone alerts: ${cf.alerts?'on':'off'}.</p>`;
 }
+$('rules').addEventListener('click',e=>{if(e.target.id!=='qbToggle')return;quickBet=!quickBet;try{localStorage.setItem('lab-quickbet',quickBet?'on':'off')}catch(_){}ledgerView();toast(quickBet?'Quick bet on':'Back to manual betting')});
 $('needs').addEventListener('click',e=>{const b=e.target.closest('button[data-grade]');if(b)act({id:b.dataset.id},'grade',{result:b.dataset.grade})});
 async function run(kind){try{await api('api/run',{kind});toast(kind==='grade'?'Grading…':'The desks are on it. This takes a minute or two.');setTimeout(load,4000)}catch(e){toast(e.message,true)}}
 $('runSlate').onclick=()=>run('slate');$('runRescan').onclick=()=>run('rescan');$('runGrade').onclick=()=>run('grade');

@@ -82,7 +82,7 @@ class OddsClient:
         until = utcnow() + timedelta(hours=info["window_h"])
         params = {
             "bookmakers": self.books_param(), "markets": ",".join(markets),
-            "oddsFormat": "american", "dateFormat": "iso",
+            "oddsFormat": "american", "dateFormat": "iso", "includeLinks": "true",
             "commenceTimeTo": until.strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
         return self._get(f"{sport}/odds", params, len(markets), f"odds {short(sport)}")
@@ -90,7 +90,7 @@ class OddsClient:
     def one_game(self, sport: str, event_id: str, market: str) -> list[dict]:
         """One market for one game: 1 credit. Allowed a few credits past the daily cap, since you asked for it."""
         params = {"bookmakers": self.books_param(), "markets": market, "oddsFormat": "american",
-                  "dateFormat": "iso", "eventIds": event_id}
+                  "dateFormat": "iso", "eventIds": event_id, "includeLinks": "true"}
         return self._get(f"{sport}/odds", params, 1, f"check {short(sport)}", extra_cap=8)
 
     def event_props(self, sport: str, event_id: str, markets: list[str]) -> dict:
@@ -110,6 +110,21 @@ def _market(book: dict, key: str) -> dict | None:
 
 BOOK_NAMES = {"bovada": "Bovada", "lowvig": "LowVig", "betonlineag": "BetOnline", "mybookieag": "MyBookie", "pinnacle": "Pinnacle",
               "draftkings": "DraftKings", "fanduel": "FanDuel", "betmgm": "BetMGM", "williamhill_us": "Caesars", "betrivers": "BetRivers"}
+
+
+LINK_HOSTS = {"bovada": ("bovada.lv",), "lowvig": ("lowvig.ag",), "betonlineag": ("betonline.ag",), "mybookieag": ("mybookie.ag",)}
+
+
+def safe_link(book: str, url) -> str | None:
+    """Only https links on that sportsbook's own domain."""
+    from urllib.parse import urlparse
+    if not isinstance(url, str):
+        return None
+    u = urlparse(url)
+    host = (u.hostname or "").lower()
+    if u.scheme == "https" and any(host == h or host.endswith("." + h) for h in LINK_HOSTS.get(book, ())):
+        return url
+    return None
 
 
 def book_name(key: str | None) -> str:
@@ -183,6 +198,7 @@ def build_candidates(events: list[dict], sport: str, min_books: int = 3, now: da
                     "min_price": om.min_price(fair) if fair else None, "books": len(r), "dispersion": disp,
                     "consensus_point": median(pts) if pts else None,
                     "quote_at": quote_at.get(best), "estimated": False, "book": best, "prices": prices,
+                    "links": {bk: safe_link(bk, books[bk].get("link")) for bk in prices if safe_link(bk, books[bk].get("link"))},
                 })
     return out
 

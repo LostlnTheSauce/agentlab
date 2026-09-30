@@ -155,6 +155,10 @@ dialog h3{font:14px var(--f-display);margin:0 0 8px;letter-spacing:.06em}
 dialog ol{margin:8px 0;padding-left:20px;font-size:12px;display:grid;gap:4px}
 dialog label{display:grid;gap:4px;font:10px var(--f-display);letter-spacing:.06em;color:var(--quiet)}
 dialog input{background:var(--bg);border:2px solid var(--line);padding:8px;font:22px var(--f-data);width:100%}
+.qcheck{font-size:12px;padding:6px 8px;border:1px solid var(--line);border-left-width:3px;margin:4px 0 8px}
+.qcheck.good{border-left-color:var(--win)} .qcheck.worse,.qcheck.gone{border-left-color:var(--loss)} .qcheck.moved{border-left-color:var(--amber)} .qcheck.wait{border-left-color:var(--quiet);color:var(--quiet)}
+.golink{font:11px var(--f-display);letter-spacing:.05em;padding:8px 10px;border:2px solid #ffe2a8;background:var(--amber);color:var(--amber-ink);text-decoration:none}
+.toggle{font:11px var(--f-display);padding:6px 9px;border:2px solid var(--line);background:var(--raised)} .toggle.on{border-color:var(--lime);color:var(--lime)}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
 .warn{font-size:12px;color:var(--loss);min-height:1.2em}
 .win{font:20px var(--f-data);color:var(--win);min-height:1.2em}

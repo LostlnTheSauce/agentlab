@@ -39,6 +39,7 @@ def pick_view(p: dict, ctx: dict, members: dict, real: dict, settings, names: di
         "research": briefing(ctx) if ctx else "", "local_day": p["local_day"],
         "real_bet": rb, "check": checks.get(p["id"]),
         "book": p.get("book") or "bovada", "book_name": book_name(p.get("book") or "bovada"),
+        "links": json.loads(p["links"]) if p.get("links") else {},
         "prices": [{"book": k, "name": book_name(k), "price": v, "txt": om.fmt(v)}
                    for k, v in sorted((json.loads(p["prices"]) if p.get("prices") else {}).items(), key=lambda kv: -om.dec(kv[1]))],
     }

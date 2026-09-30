@@ -36,6 +36,8 @@ def recheck(settings, db: DB, pick_id: str, odds: OddsClient | None = None) -> d
             status, text = "good", f"Still good: {line} {om.fmt(same['price'])}{at}{edge}, at or above the {om.fmt(p['min_price'])} floor."
         else:
             status, text = "worse", f"Price got worse: {line} {om.fmt(same['price'])}{at}{edge}, past the {om.fmt(p['min_price'])} floor. Pass."
-        out = {"status": status, "text": text, "price": now_c["price"], "book": now_c.get("book"), "point": now_c["point"], "edge": now_c.get("edge"), "checked_at": iso(now)}
+        out = {"status": status, "text": text, "price": now_c["price"], "book": now_c.get("book"),
+               "book_name": book_name(now_c.get("book")), "prices": now_c.get("prices") or {}, "links": now_c.get("links") or {},
+               "same_line": same is not None, "min_price": p["min_price"], "point": now_c["point"], "edge": now_c.get("edge"), "checked_at": iso(now)}
     db.put(f"recheck:{pick_id}", out)
     return out
