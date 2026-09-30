@@ -195,7 +195,7 @@ class Brain:
                     "The desks will look again this afternoon."), []
         if not self.s.llm_enabled:
             return _template_memo(ranked, flagged, vetoed, fallback_ids), fallback_ids
-        lines = [f"[{i}] {p['agent_name']}: {describe(p)} ({short(p['sport'])}, {matchup(p)}) edge {p['edge'] * 100:+.1f}%, "
+        lines = [f"[{i}] {p['agent_name']}: {describe(p)}{' at ' + book_name(p['book']) if p.get('book') else ''} ({short(p['sport'])}, {matchup(p)}) edge {p['edge'] * 100:+.1f}%, "
                  f"{p['stake_units']:g}u, confidence {p['confidence']}. {p['reasoning']}" for i, p in enumerate(ranked, 1)]
         other = [f"- {p['agent_name']}: {describe(p)} — {p['board_status'].upper()}: {'; '.join(p['board_notes'])}" for p in flagged + vetoed]
         system = (
@@ -204,7 +204,7 @@ class Brain:
             f"Choose up to {max_real} cleared picks (by number) that deserve real money, best first. Only fair prices or better "
             "(edge -1.5% or higher). Prefer strong, specific reads and better prices, diversify across games, and skip anything shaky; "
             "choosing fewer, or none, is fine. Then write a memo of at most 110 words: "
-            "the headline pick and why, anything the owner should watch, and total real-money exposure. Plain text, no lists, no hype, no promises."
+            "the headline pick and why (say which sportsbook to use when the pick names one), anything the owner should watch, and total real-money exposure. Plain text, no lists, no hype, no promises."
         )
         user = ("Cleared by the risk board:\n" + ("\n".join(lines) or "(none)")
                 + "\n\nFlagged or vetoed:\n" + ("\n".join(other) or "(none)")

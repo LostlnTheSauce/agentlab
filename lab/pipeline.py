@@ -341,6 +341,11 @@ class Lab:
         ids = pick_real(sorted(fresh, key=rank_score, reverse=True), room)
         return {pid: already + i + 1 for i, pid in enumerate(ids)}
 
+    def _at(self, p: dict) -> str:
+        """ " at LowVig" when you shop more than one book."""
+        from .sources.odds import book_name
+        return f" at {book_name(p.get('book'))}" if len(self.s.my_books) > 1 and p.get("book") else ""
+
     def _alert(self, kind: str, new: list[dict], real: dict) -> None:
         real_picks = [p for p in new if p["id"] in real]
         if kind == "slate":
@@ -349,7 +354,7 @@ class Lab:
                 f"• {describe(p)}{self._at(p)} ({p['agent_name']}), floor {om.fmt(p['min_price'])}" for p in real_picks[:6])
             notify.push(self.s, "Morning slate is ready", body + ("\n\n" + memo["text"][:300] if memo else ""))
         elif real_picks:
-            body = "\n".join(f"• {describe(p)} ({p['agent_name']}, {matchup(p)}), don't take worse than {om.fmt(p['min_price'])}" for p in real_picks)
+            body = "\n".join(f"• {describe(p)}{self._at(p)} ({p['agent_name']}, {matchup(p)}), don't take worse than {om.fmt(p['min_price'])}" for p in real_picks)
             notify.push(self.s, "Late pick: price is live now", body, priority="high")
 
     # ------------------------------------------------------------------ closing lines and grading
