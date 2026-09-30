@@ -27,7 +27,7 @@ log = logging.getLogger("lab.pipeline")
 PICK_COLUMNS = [
     "id", "run_id", "local_day", "created_at", "agent", "event_id", "sport", "home", "away", "commence", "market", "selection",
     "point", "player", "price", "fair_prob", "edge", "min_price", "books", "estimated", "stake_units", "confidence", "reasoning",
-    "signal", "board_status", "board_notes", "group_id", "ceo_rank", "real_pick", "paper_only", "late", "legs",
+    "signal", "board_status", "board_notes", "group_id", "ceo_rank", "real_pick", "paper_only", "late", "legs", "book", "prices",
 ]
 
 
@@ -130,7 +130,7 @@ class Lab:
             except SourceError as e:
                 notes.append(f"{short(sport)}: odds unavailable ({e})")
                 continue
-            got = build_candidates(events, sport, self.s.min_books, now)
+            got = build_candidates(events, sport, self.s.min_books, now, self.s.my_books)
             self._store_prices(got, iso(now))
             cands.extend(got)
             fetched.append(sport)
@@ -205,6 +205,7 @@ class Lab:
             "min_price": floor_price(c), "books": c["books"], "estimated": bool(c.get("estimated")), "dispersion": c.get("dispersion"),
             "quote_at": c.get("quote_at"), "stake_units": float(choice["stake_units"]), "confidence": choice["confidence"],
             "reasoning": choice["reasoning"], "signal": choice["signal"], "late": int(late), "legs": None,
+            "book": c.get("book", "bovada"), "prices": c.get("prices"),
         }
 
     def _insert(self, picks: list[dict]) -> None:
@@ -213,6 +214,7 @@ class Lab:
                 row = {k: p.get(k) for k in PICK_COLUMNS}
                 row["board_notes"] = json.dumps(p.get("board_notes", []))
                 row["legs"] = json.dumps(p["legs"]) if p.get("legs") else None
+                row["prices"] = json.dumps(p["prices"]) if p.get("prices") else None
                 row["estimated"] = int(bool(p.get("estimated")))
                 row["paper_only"] = int(bool(p.get("paper_only")))
                 row["real_pick"] = int(bool(p.get("real_pick")))
@@ -371,12 +373,16 @@ class Lab:
             except (BudgetError, SourceError) as e:
                 log.info("closing skipped for %s: %s", sport, e)
                 continue
-            self._store_prices(build_candidates(events, sport, self.s.min_books, now), iso(now))
+            self._store_prices(build_candidates(events, sport, self.s.min_books, now, self.s.my_books), iso(now))
             done.append(sport)
         return done
 
     def grade(self, now: datetime | None = None) -> int:
+        from . import alerts
+        was_open = alerts.open_real_picks(self.db)
         n = grading.grade_pending(self.db, self.espn, now)
+        if was_open:
+            alerts.graded(self.s, self.db, was_open)
         if n:
             self.db.feed(f"Graded {n} finished bet{'s' if n != 1 else ''}.")
         return n
@@ -420,6 +426,12 @@ class Lab:
                 self.grade(now)  # settle the weekend before judging it
                 if meeting.hold(self, now):
                     did.append("meeting")
+            if hour >= self.s.recap_hour and self.db.get("last_recap") != day:
+                from . import alerts
+                self.grade(now)
+                self.db.put("last_recap", day)
+                if alerts.recap(self.s, self.db, day):
+                    did.append("recap")
             if hour >= self.s.backup_hour and self.db.get("last_backup") != day:
                 from .backup import backup
                 backup(self.s.db_path, day)

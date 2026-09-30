@@ -64,6 +64,7 @@ class Settings:
     odds_api_key: str | None = None
     anthropic_api_key: str | None = None
     sports: list[str] = field(default_factory=lambda: DEFAULT_SPORTS.split(","))
+    my_books: list[str] = field(default_factory=lambda: ["bovada"])
     bookmakers: list[str] = field(default_factory=lambda: DEFAULT_BOOKS.split(","))
     timezone: str = "America/Chicago"
     unit_dollars: float = 1.0
@@ -79,6 +80,7 @@ class Settings:
     agent_memory: bool = True
     meeting_hour: int = 21
     backup_hour: int = 3
+    recap_hour: int = 22
     tipster_model: str = "claude-opus-5-5"
     tipster_effort: str = "low"
     ceo_model: str = "claude-opus-5-5"
@@ -106,6 +108,7 @@ def get_settings() -> Settings:
         odds_api_key=_str("ODDS_API_KEY"),
         anthropic_api_key=_str("ANTHROPIC_API_KEY"),
         sports=_list("LAB_SPORTS", DEFAULT_SPORTS),
+        my_books=_list("LAB_MY_BOOKS", "bovada"),
         bookmakers=_list("LAB_BOOKMAKERS", DEFAULT_BOOKS),
         timezone=_str("LAB_TZ", "America/Chicago"),
         unit_dollars=_float("LAB_UNIT_DOLLARS", 1.0),
@@ -121,6 +124,7 @@ def get_settings() -> Settings:
         agent_memory=_bool("LAB_AGENT_MEMORY", True),
         meeting_hour=_int("LAB_MEETING_HOUR", 21),
         backup_hour=_int("LAB_BACKUP_HOUR", 3),
+        recap_hour=_int("LAB_RECAP_HOUR", 22),
         tipster_model=_str("LAB_TIPSTER_MODEL", "claude-opus-5-5"),
         tipster_effort=_str("LAB_TIPSTER_EFFORT", "low"),
         ceo_model=_str("LAB_CEO_MODEL", "claude-opus-5-5"),

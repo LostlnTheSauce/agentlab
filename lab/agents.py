@@ -13,7 +13,7 @@ import threading
 
 from . import oddsmath as om
 from .research import briefing
-from .sources.odds import short
+from .sources.odds import book_name, short
 
 log = logging.getLogger("lab.agents")
 
@@ -22,8 +22,8 @@ PRICES = {"claude-opus-5-5": (4.0, 20.0), "claude-sonnet-5-5": (2.0, 10.0), "cla
 
 FIRM_RULES = """You are a tipster at Agent Lab, a small sports betting research firm. The owner reads your picks and \
 decides whether to place them on Bovada with real money (usually $1-2 per bet). Every option you see already has a \
-real Bovada price and a fair price from the sharp-book consensus; "edge" is expected value against that consensus.
-Because of Bovada's cut, most prices sit around -2% edge. A bet at -1.5% or better is a fair price; worse than that it
+real price at one of the owner's sportsbooks (the best one available) and a fair price from the sharp-book consensus;
+"edge" is expected value against that consensus. Because of the books' cut, most prices sit around -2% edge. A bet at -1.5% or better is a fair price; worse than that it
 needs a genuinely strong read. Your method is your claim that the market is missing something: say what, concretely.
 
 Rules:
@@ -149,7 +149,7 @@ class Brain:
             c = o["cand"]
             lines.append(
                 f"[{i}] {short(c['sport'])} · {matchup(c)} · starts {c['commence']}\n"
-                f"    Bet: {describe(c)} | fair {om.fmt(om.american_from_prob(c['fair_prob']))} | edge {c['edge'] * 100:+.1f}% | "
+                f"    Bet: {describe(c)}{' at ' + book_name(c.get('book')) if c.get('book') else ''} | fair {om.fmt(om.american_from_prob(c['fair_prob']))} | edge {c['edge'] * 100:+.1f}% | "
                 f"{c['books']} books{' (fair estimated)' if c.get('estimated') else ''}\n"
                 f"    Why it's on your desk: {o['signal']}\n"
                 f"    Research: {briefing(ctx.get(c['event_id'], {}))}"

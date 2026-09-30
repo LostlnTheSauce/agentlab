@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from . import oddsmath as om
+from .sources.odds import BOOK_NAMES
 from .db import parse
 
 
@@ -67,7 +68,7 @@ def review(new: list[dict], existing: list[dict], stats: dict, wallets: dict, se
             if p.get("quote_at"):
                 age = (now - parse(p["quote_at"])).total_seconds() / 60
                 if age > 45:
-                    flag(f"Mara: Bovada quote is {age:.0f} minutes old. Re-check the price.")
+                    flag(f"Mara: the {BOOK_NAMES.get(p.get('book') or 'bovada', 'book')} quote is {age:.0f} minutes old. Re-check the price.")
             if p.get("estimated"):
                 flag("Mara: fair price is estimated from a line gap, not direct quotes at this number.")
             elif (p.get("books") or 0) < settings.min_books:

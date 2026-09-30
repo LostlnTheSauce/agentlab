@@ -93,7 +93,7 @@ def group_members(db: DB, pick_id: str) -> list[dict]:
     return db.all("SELECT * FROM picks WHERE (id=? OR group_id=?) AND board_status!='vetoed' ORDER BY created_at", (lead, lead))
 
 
-def place_real(db: DB, pick_id: str, price: int, stake_dollars: float) -> list[dict]:
+def place_real(db: DB, pick_id: str, price: int, stake_dollars: float, book: str | None = None) -> list[dict]:
     """Record a real Bovada bet. A merged pick splits stake and result across every tipster who made it."""
     om.dec(price)  # validates
     members = group_members(db, pick_id)
@@ -109,8 +109,8 @@ def place_real(db: DB, pick_id: str, price: int, stake_dollars: float) -> list[d
     with db.tx() as c:
         for m, share in zip(members, shares):
             if share > 0:
-                c.execute("INSERT INTO bets(pick_id,kind,agent,stake_cents,price,placed_at) VALUES(?,?,?,?,?,?)",
-                          (m["id"], "real", m["agent"], share, price, now))
+                c.execute("INSERT INTO bets(pick_id,kind,agent,stake_cents,price,placed_at,book) VALUES(?,?,?,?,?,?,?)",
+                          (m["id"], "real", m["agent"], share, price, now, book or m.get("book") or "bovada"))
             c.execute("UPDATE picks SET decision='placed', decided_at=? WHERE id=?", (now, m["id"]))
         # a real bet placed after the game was graded settles immediately
         for m in members:

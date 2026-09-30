@@ -71,12 +71,17 @@ class OddsClient:
         )
         return data
 
+    def books_param(self) -> str:
+        """Your books first, then comparison books, capped at 10 (10 books cost the same as one region)."""
+        keys = list(dict.fromkeys(list(getattr(self.s, "my_books", ["bovada"])) + list(self.s.bookmakers)))
+        return ",".join(keys[:10])
+
     def odds(self, sport: str, markets: list[str] | None = None) -> list[dict]:
         markets = markets or SPORT_INFO[sport]["markets"]
         info = SPORT_INFO.get(sport, {"window_h": 48})
         until = utcnow() + timedelta(hours=info["window_h"])
         params = {
-            "bookmakers": ",".join(self.s.bookmakers[:10]), "markets": ",".join(markets),
+            "bookmakers": self.books_param(), "markets": ",".join(markets),
             "oddsFormat": "american", "dateFormat": "iso",
             "commenceTimeTo": until.strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
@@ -84,12 +89,12 @@ class OddsClient:
 
     def one_game(self, sport: str, event_id: str, market: str) -> list[dict]:
         """One market for one game: 1 credit. Allowed a few credits past the daily cap, since you asked for it."""
-        params = {"bookmakers": ",".join(self.s.bookmakers[:10]), "markets": market, "oddsFormat": "american",
+        params = {"bookmakers": self.books_param(), "markets": market, "oddsFormat": "american",
                   "dateFormat": "iso", "eventIds": event_id}
         return self._get(f"{sport}/odds", params, 1, f"check {short(sport)}", extra_cap=8)
 
     def event_props(self, sport: str, event_id: str, markets: list[str]) -> dict:
-        params = {"bookmakers": ",".join(self.s.bookmakers[:10]), "markets": ",".join(markets), "oddsFormat": "american", "dateFormat": "iso"}
+        params = {"bookmakers": self.books_param(), "markets": ",".join(markets), "oddsFormat": "american", "dateFormat": "iso"}
         return self._get(f"{sport}/events/{event_id}/odds", params, len(markets), f"props {short(sport)}")
 
 
@@ -103,9 +108,36 @@ def _market(book: dict, key: str) -> dict | None:
     return found[0] if len(found) == 1 else None
 
 
-def build_candidates(events: list[dict], sport: str, min_books: int = 3, now: datetime | None = None) -> list[dict]:
-    """Every Bovada outcome, priced against the no-vig consensus of the other books at the same line."""
+BOOK_NAMES = {"bovada": "Bovada", "lowvig": "LowVig", "betonlineag": "BetOnline", "mybookieag": "MyBookie", "pinnacle": "Pinnacle",
+              "draftkings": "DraftKings", "fanduel": "FanDuel", "betmgm": "BetMGM", "williamhill_us": "Caesars", "betrivers": "BetRivers"}
+
+
+def book_name(key: str | None) -> str:
+    return BOOK_NAMES.get(key or "", (key or "?").title())
+
+
+def _no_vig_map(book: dict, key: str) -> tuple[dict, dict] | None:
+    """(name, point) -> no-vig probability for one book's complete market, plus name -> points offered."""
+    m = _market(book, key)
+    outs = (m or {}).get("outcomes") or []
+    if len(outs) < 2:
+        return None
+    try:
+        probs = om.no_vig([o["price"] for o in outs])
+        if not 0.97 <= sum(om.implied(o["price"]) for o in outs) <= 1.3:
+            return None
+    except (KeyError, ValueError, ZeroDivisionError):
+        return None
+    return ({(o["name"], o.get("point")): p for o, p in zip(outs, probs)},
+            {o["name"]: float(o["point"]) for o in outs if o.get("point") is not None})
+
+
+def build_candidates(events: list[dict], sport: str, min_books: int = 3, now: datetime | None = None,
+                     my_books: tuple | list = ("bovada",)) -> list[dict]:
+    """Every bet offered at one of your books, at its best price among them, priced against the
+    no-vig consensus of the other books at the same line (the book you'd bet at is left out of its own fair price)."""
     now = now or utcnow()
+    my_books = [b for b in my_books] or ["bovada"]
     out = []
     for ev in events:
         try:
@@ -115,37 +147,26 @@ def build_candidates(events: list[dict], sport: str, min_books: int = 3, now: da
         if commence <= now:
             continue
         books = {b["key"]: b for b in ev.get("bookmakers", []) if b.get("key")}
-        bov = books.get("bovada")
-        if not bov:
+        mine = [b for b in my_books if b in books]
+        if not mine:
             continue
-        for bm in bov.get("markets", []):
-            key = bm.get("key")
-            outs = bm.get("outcomes") or []
-            if key not in ("h2h", "spreads", "totals") or len(outs) < 2:
-                continue
-            refs: dict[tuple, list[tuple[str, float]]] = defaultdict(list)
-            ref_points: dict[str, list[float]] = defaultdict(list)
-            for bkey, book in books.items():
-                if bkey == "bovada":
+        for key in ("h2h", "spreads", "totals"):
+            maps = {bk: _no_vig_map(book, key) for bk, book in books.items()}
+            offers: dict[tuple, dict] = defaultdict(dict)
+            quote_at: dict[str, str] = {}
+            for bk in mine:
+                m = _market(books[bk], key)
+                if not m or len(m.get("outcomes") or []) < 2:
                     continue
-                m = _market(book, key)
-                if not m or len(m.get("outcomes") or []) != len(outs):
-                    continue
-                try:
-                    probs = om.no_vig([o["price"] for o in m["outcomes"]])
-                except (KeyError, ValueError, ZeroDivisionError):
-                    continue
-                if not 0.97 <= sum(om.implied(o["price"]) for o in m["outcomes"]) <= 1.3:
-                    continue
-                for o, p in zip(m["outcomes"], probs):
-                    refs[(o["name"], o.get("point"))].append((bkey, p))
-                    if o.get("point") is not None:
-                        ref_points[o["name"]].append(float(o["point"]))
-            for o in outs:
-                name, point, price = o.get("name"), o.get("point"), o.get("price")
-                if name is None or price is None:
-                    continue
-                r = refs.get((name, point), [])
+                quote_at[bk] = m.get("last_update") or books[bk].get("last_update")
+                for o in m["outcomes"]:
+                    if o.get("name") is not None and o.get("price") is not None:
+                        offers[(o["name"], o.get("point"))][bk] = int(o["price"])
+            for (name, point), prices in offers.items():
+                best = max(prices, key=lambda b: (om.dec(prices[b]), -mine.index(b)))
+                price = prices[best]
+                r = [(bk, mp[0][(name, point)]) for bk, mp in maps.items() if bk != best and mp and (name, point) in mp[0]]
+                pts = [mp[1][name] for bk, mp in maps.items() if bk != best and mp and name in mp[1]]
                 fair = disp = None
                 if len(r) >= min_books:
                     probs = [p for _, p in r]
@@ -153,17 +174,16 @@ def build_candidates(events: list[dict], sport: str, min_books: int = 3, now: da
                     pin = next((p for k, p in r if k == "pinnacle"), None)
                     fair = (pin + med) / 2 if pin is not None else med
                     disp = max(probs) - min(probs)
-                c = {
+                out.append({
                     "id": cand_id(ev["id"], key, name, point),
                     "event_id": ev["id"], "sport": sport, "home": ev["home_team"], "away": ev["away_team"],
                     "commence": ev["commence_time"], "market": key, "selection": name,
-                    "point": float(point) if point is not None else None, "player": None, "price": int(price),
+                    "point": float(point) if point is not None else None, "player": None, "price": price,
                     "fair_prob": fair, "edge": om.edge(fair, price) if fair else None,
                     "min_price": om.min_price(fair) if fair else None, "books": len(r), "dispersion": disp,
-                    "consensus_point": median(ref_points[name]) if ref_points.get(name) else None,
-                    "quote_at": bm.get("last_update") or bov.get("last_update"), "estimated": False,
-                }
-                out.append(c)
+                    "consensus_point": median(pts) if pts else None,
+                    "quote_at": quote_at.get(best), "estimated": False, "book": best, "prices": prices,
+                })
     return out
 
 

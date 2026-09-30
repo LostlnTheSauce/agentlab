@@ -143,7 +143,10 @@ def create_app(settings=None, db: DB | None = None) -> Flask:
                 stake = float(body.get("stake", p["stake_units"] * s.unit_dollars))
                 if not 0 < stake <= 500:
                     raise ValueError("Stake must be between $0 and $500")
-                ledger.place_real(db, pick_id, price, stake)
+                book = body.get("book") or p.get("book") or "bovada"
+                if book not in s.my_books and book != p.get("book"):
+                    raise ValueError("Unknown sportsbook")
+                ledger.place_real(db, pick_id, price, stake, book)
             elif action == "grade":
                 grading.manual_grade(db, pick_id, body.get("result", ""))
             else:

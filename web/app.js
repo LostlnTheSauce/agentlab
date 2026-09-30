@@ -126,7 +126,8 @@ function card(p){
   const rb=p.real_bet;
   el.innerHTML=`<div class="chead"><canvas width="13" height="16"></canvas><div class="who"><b>${esc(p.agent_name.toUpperCase())}</b><span>${esc(t.role)} · ${esc(p.league)}</span></div><div class="chips">${chips.join('')}</div></div>
     <div><div class="mkt">${esc(p.bet)}</div><div class="game">${esc(p.game)} · ${esc(when(p.commence))}</div></div>
-    <div class="odds"><div><b>BOVADA</b><span>${esc(p.price_txt)}</span></div><div><b>FAIR</b><span>${esc(p.fair_txt)}${p.estimated?'*':''}</span></div><div><b>VS FAIR</b><span class="${cls(p.edge)}">${edgeTxt}</span></div><div><b>FLOOR</b><span>${esc(p.min_txt)}</span></div></div>
+    <div class="odds"><div><b>${esc((p.book_name||'Bovada').toUpperCase())}</b><span>${esc(p.price_txt)}</span></div><div><b>FAIR</b><span>${esc(p.fair_txt)}${p.estimated?'*':''}</span></div><div><b>VS FAIR</b><span class="${cls(p.edge)}">${edgeTxt}</span></div><div><b>FLOOR</b><span>${esc(p.min_txt)}</span></div></div>
+    ${(p.prices||[]).length>1?`<p class="also">Also: ${p.prices.filter(x=>x.book!==p.book).map(x=>`${esc(x.name)} ${esc(x.txt)}`).join(' · ')}</p>`:''}
     <p class="why">"${esc(p.reasoning)}"</p>
     ${p.group.length?`<p class="signal">Also picked by ${esc(p.group.join(', '))}.</p>`:''}
     ${p.notes.length?`<div class="board ${p.board}">${p.notes.map(n=>`<span>${esc(n)}</span>`).join('')}</div>`:''}
@@ -158,7 +159,8 @@ function betLine(p,rb){
   else if(res==='loss')tail=`<b class="down">Lost ${money(stake)}</b>`;
   else if(res==='push'||res==='void')tail=`<b>Push</b>, stake returned`;
   else tail=`to win <b class="up">${money(win)}</b> (pays ${money(stake+win)})`;
-  return `<p class="betline">You bet <b>${money(stake)}</b> at ${pr} · ${tail}${share}</p>`;
+  const bk=rb.book&&(S.config.books||[]).length>1?` on ${esc(rb.book)}`:'';
+  return `<p class="betline">You bet <b>${money(stake)}</b> at ${pr}${bk} · ${tail}${share}</p>`;
 }
 function slate(){
   const today=S.picks.filter(p=>p.local_day===S.day),open=S.picks.filter(p=>p.local_day!==S.day&&!p.result);
@@ -200,13 +202,22 @@ async function act(p,action,extra){
 }
 
 /* place dialog */
-let placing=null;
+let placing=null,placeBook='bovada';
+function renderBooks(p){
+  const books=S.config.books||[],box=$('placeBooks');
+  box.hidden=books.length<2;if(books.length<2)return;
+  const quoted=Object.fromEntries((p.prices||[]).map(x=>[x.book,x.txt]));
+  box.innerHTML='<b>WHERE YOU BET</b>'+books.map(b=>`<button type="button" data-book="${esc(b.key)}" class="${b.key===placeBook?'on':''}">${esc(b.name)}${quoted[b.key]?' '+esc(quoted[b.key]):''}</button>`).join('');
+}
+$('placeBooks').addEventListener('click',e=>{const b=e.target.closest('button[data-book]');if(!b)return;placeBook=b.dataset.book;
+  const q=(placing.prices||[]).find(x=>x.book===placeBook);if(q)$('placePrice').value=q.txt.replace('−','-');renderBooks(placing);checkPlace()});
 const parsePrice=s=>{const m=String(s).trim().replace('−','-').match(/^([+-]?)(\d{3,5})$/);if(!m)return null;const v=parseInt(m[2],10)*(m[1]==='-'?-1:1);return Math.abs(v)>=100?v:null};
 const dec=a=>a>0?1+a/100:1+100/-a;
 function openPlace(p){
   placing=p;
   $('placeWhat').textContent=`${p.bet} ${p.price_txt}`;
-  $('placeSteps').innerHTML=[`Open Bovada → ${esc(p.league)} → <b>${esc(p.game)}</b>.`,`Find <b>${esc(p.bet)}</b>. It was ${esc(p.price_txt)} when picked.`,
+  placeBook=p.book||'bovada';renderBooks(p);
+  $('placeSteps').innerHTML=[`Open <b>${esc(p.book_name||'Bovada')}</b> → ${esc(p.league)} → <b>${esc(p.game)}</b>.`,`Find <b>${esc(p.bet)}</b>. It was ${esc(p.price_txt)} when picked.`,
     p.min_price!=null?`Only bet if the price is <b>${esc(p.min_txt)}</b> or better. Worse than that, the edge is gone: cancel and pass.`:'No floor for this one; use your judgment.',
     `Bet ${money(p.stake_dollars)}, then enter the price you actually got.`].map(s=>`<li>${s}</li>`).join('');
   $('placePrice').value=p.price_txt.replace('−','-');$('placeStake').value=p.stake_dollars.toFixed(2);
@@ -229,7 +240,7 @@ $('placeForm').addEventListener('submit',e=>{
   if(e.submitter&&e.submitter.value!=='ok')return;
   const {pr,st}=checkPlace();
   if(pr==null||!(st>0)){e.preventDefault();return}
-  act(placing,'placed',{price:pr,stake:st});
+  act(placing,'placed',{price:pr,stake:st,book:placeBook});
 });
 
 /* ---------------------------------------------------------------- tipsters */
@@ -309,7 +320,7 @@ function ledgerView(){
   svg.innerHTML=g;
   const bets=S.real.bets;
   $('realHead').textContent=`YOUR BOVADA BETS · ${bets.length} RECENT`;
-  $('realBets').innerHTML=bets.length?bets.slice(0,15).map(b=>`<div class="li"><div><b>${esc(b.bet)} ${esc(b.price)}</b><div class="g">${esc(b.game)} · ${esc(b.agents.join(', '))} · ${money(b.stake)}</div></div>
+  $('realBets').innerHTML=bets.length?bets.slice(0,15).map(b=>`<div class="li"><div><b>${esc(b.bet)} ${esc(b.price)}</b><div class="g">${esc(b.game)} · ${esc(b.agents.join(', '))} · ${money(b.stake)}${(S.config.books||[]).length>1?' · '+esc(b.book):''}</div></div>
     <div class="r ${b.result?cls(b.profit):''}">${b.result?money(b.profit,true):`<span class="q" style="font-size:14px">to win</span> ${money(toWin(b.stake,parseInt(String(b.price).replace('−','-'),10)))}`}</div></div>`).join('')
     :'<div class="q">Nothing placed yet. Real-money picks show up on the Slate tab with a BET button.</div>';
   const needs=S.picks.filter(p=>S.needs_grading.includes(p.id));

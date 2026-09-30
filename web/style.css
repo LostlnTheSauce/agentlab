@@ -104,6 +104,11 @@ a{color:var(--teal)}
 .odds b{font:9px var(--f-display);color:var(--quiet);font-weight:400;letter-spacing:.06em}
 .odds span{font:20px/1.1 var(--f-data);font-variant-numeric:tabular-nums}
 .why{font-size:12px;margin:0}
+.also{font-size:11px;color:var(--quiet);margin:-4px 0 0}
+.books{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:4px 0}
+.books b{font:10px var(--f-display);letter-spacing:.06em;color:var(--quiet);width:100%}
+.books button{font:11px var(--f-display);padding:6px 9px;border:2px solid var(--line);background:var(--raised)}
+.books button.on{border-color:var(--lime);color:var(--lime)}
 .signal{font-size:11px;color:var(--quiet);margin:0}
 details.research{font-size:11px;color:var(--quiet)}
 details.research summary{cursor:pointer;font:10px var(--f-display);letter-spacing:.06em}

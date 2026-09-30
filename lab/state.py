@@ -12,7 +12,7 @@ from .agents import describe
 from .db import DB, iso, local_day, utcnow
 from .research import briefing
 from . import roster
-from .sources.odds import short
+from .sources.odds import book_name, short
 
 LEAGUE = {"americanfootball_nfl": "NFL", "americanfootball_ncaaf": "College football", "baseball_mlb": "MLB",
           "basketball_nba": "NBA", "soccer_epl": "Premier League", "soccer_usa_mls": "MLS", "soccer_uefa_champs_league": "Champions League"}
@@ -38,6 +38,9 @@ def pick_view(p: dict, ctx: dict, members: dict, real: dict, settings, names: di
         "result": p["result"], "clv": p["clv"], "actual": p["actual"],
         "research": briefing(ctx) if ctx else "", "local_day": p["local_day"],
         "real_bet": rb, "check": checks.get(p["id"]),
+        "book": p.get("book") or "bovada", "book_name": book_name(p.get("book") or "bovada"),
+        "prices": [{"book": k, "name": book_name(k), "price": v, "txt": om.fmt(v)}
+                   for k, v in sorted((json.loads(p["prices"]) if p.get("prices") else {}).items(), key=lambda kv: -om.dec(kv[1]))],
     }
 
 
@@ -62,8 +65,8 @@ def build_state(settings, db: DB) -> dict:
     for p in picks:
         members[p["group_id"] or p["id"]].append(p["agent"])
     real = {}
-    for b in db.all("SELECT pick_id, SUM(stake_cents) s, MAX(price) price, SUM(COALESCE(profit_cents,0)) pr, MAX(result) r FROM bets WHERE kind='real' GROUP BY pick_id"):
-        real[b["pick_id"]] = {"stake": b["s"] / 100, "price": b["price"], "profit": b["pr"] / 100, "result": b["r"]}
+    for b in db.all("SELECT pick_id, SUM(stake_cents) s, MAX(price) price, SUM(COALESCE(profit_cents,0)) pr, MAX(result) r, MAX(book) book FROM bets WHERE kind='real' GROUP BY pick_id"):
+        real[b["pick_id"]] = {"stake": b["s"] / 100, "price": b["price"], "profit": b["pr"] / 100, "result": b["r"], "book": book_name(b["book"] or "bovada")}
     # each merged tipster holds a share; show the whole bet on every card in the group
     by_lead = defaultdict(list)
     for p in picks:
@@ -128,13 +131,14 @@ def build_state(settings, db: DB) -> dict:
             spend["today"] += c
     credit = db.one("SELECT remaining, used FROM credits WHERE remaining IS NOT NULL ORDER BY id DESC LIMIT 1") or {}
     today_credits = db.one("SELECT COALESCE(SUM(cost),0) c FROM credits WHERE local_day=?", (day,))["c"]
-    real_bets = db.all("SELECT b.pick_id, b.agent, b.stake_cents, b.price, b.result, b.profit_cents, b.placed_at, p.home, p.away, p.market, p.selection, p.point, p.player, p.commence "
+    real_bets = db.all("SELECT b.pick_id, b.agent, b.stake_cents, b.price, b.result, b.profit_cents, b.placed_at, b.book, p.home, p.away, p.market, p.selection, p.point, p.player, p.commence "
                        "FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' ORDER BY b.placed_at DESC LIMIT 60")
     grouped = {}
     for b in real_bets:
         g = grouped.setdefault((b["placed_at"], b["price"], b["home"], b["market"], b["selection"], b["point"]), {
             "pick_id": b["pick_id"], "bet": describe({**b}).rsplit(" ", 1)[0], "price": om.fmt(b["price"]), "game": f"{b['away']} @ {b['home']}",
-            "commence": b["commence"], "placed_at": b["placed_at"], "result": b["result"], "stake": 0, "profit": 0, "agents": []})
+            "commence": b["commence"], "placed_at": b["placed_at"], "result": b["result"], "stake": 0, "profit": 0, "agents": [],
+            "book": book_name(b["book"] or "bovada")})
         g["stake"] += b["stake_cents"] / 100
         g["profit"] += (b["profit_cents"] or 0) / 100
         g["agents"].append(names.get(b["agent"], {}).get("name", b["agent"]))
@@ -156,7 +160,8 @@ def build_state(settings, db: DB) -> dict:
         "config": {"unit": settings.unit_dollars, "wallet": settings.wallet_dollars, "max_real": settings.max_real_per_day,
                    "llm": settings.llm_enabled, "odds": bool(settings.odds_api_key), "alerts": bool(settings.ntfy_topic),
                    "slate_hour": settings.slate_hour, "rescan_hours": settings.rescan_hours, "tz": settings.timezone,
-                   "sports": [short(x) for x in settings.sports], "meeting_hour": settings.meeting_hour},
+                   "sports": [short(x) for x in settings.sports], "meeting_hour": settings.meeting_hour,
+                   "books": [{"key": k, "name": book_name(k)} for k in settings.my_books]},
     }
 
 

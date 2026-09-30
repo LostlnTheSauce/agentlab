@@ -179,3 +179,49 @@ class Duplicates(unittest.TestCase):
             self.assertEqual(ids["other"]["group_id"], "day1")
             self.assertEqual(db.one("SELECT COUNT(*) n FROM bets WHERE pick_id='day2'")["n"], 0)
             self.assertEqual(dedupe_open(db), 0)  # idempotent
+
+
+class LineShopping(unittest.TestCase):
+    def _event(self):
+        commence = iso(datetime.now(timezone.utc) + timedelta(hours=6))
+
+        def book(key, home, away):
+            return {"key": key, "last_update": iso(), "markets": [{"key": "h2h", "outcomes": [
+                {"name": "Home", "price": home}, {"name": "Away", "price": away}]}]}
+        return {"id": "ev1", "sport_key": "americanfootball_nfl", "commence_time": commence, "home_team": "Home", "away_team": "Away",
+                "bookmakers": [book("bovada", 130, -150), book("lowvig", 138, -148), book("betonlineag", 135, -155),
+                               book("pinnacle", 136, -146), book("draftkings", 130, -150), book("fanduel", 132, -152)]}
+
+    def test_best_book_wins_and_is_left_out_of_fair(self):
+        from lab.sources.odds import build_candidates
+        solo = {c["selection"]: c for c in build_candidates([self._event()], "americanfootball_nfl", 3, my_books=["bovada"])}
+        shop = {c["selection"]: c for c in build_candidates([self._event()], "americanfootball_nfl", 3, my_books=["bovada", "lowvig", "betonlineag"])}
+        self.assertEqual((solo["Home"]["book"], solo["Home"]["price"]), ("bovada", 130))
+        self.assertEqual((shop["Home"]["book"], shop["Home"]["price"]), ("lowvig", 138))
+        self.assertEqual(shop["Home"]["prices"], {"bovada": 130, "lowvig": 138, "betonlineag": 135})
+        self.assertEqual(shop["Away"]["book"], "lowvig")  # -148 beats -150/-155
+        self.assertGreater(shop["Home"]["edge"], solo["Home"]["edge"])
+        self.assertEqual(shop["Home"]["books"], 5)  # every book except LowVig itself
+
+    def test_real_bet_records_book_and_alerts(self):
+        from lab import alerts, grading, ledger, notify
+        with tempfile.TemporaryDirectory() as tmp:
+            s = settings(tmp)
+            s.ntfy_topic = "t"
+            db = DB(s.db_path)
+            db.run("INSERT INTO picks(id,local_day,created_at,agent,event_id,sport,home,away,commence,market,selection,price,stake_units,book) "
+                   "VALUES('p','2026-10-01',?,'ursula','ev1','americanfootball_nfl','Houston Texans','Dallas Cowboys',?,'h2h','Dallas Cowboys',130,1,'lowvig')",
+                   (iso(), iso()))
+            ledger.place_real(db, "p", 135, 2.0, "lowvig")
+            self.assertEqual(db.one("SELECT book FROM bets WHERE kind='real'")["book"], "lowvig")
+            sent = []
+            orig = notify.push
+            notify.push = lambda st, title, body, priority="default": sent.append((title, body)) or True
+            try:
+                was = alerts.open_real_picks(db)
+                grading.manual_grade(db, "p", "win")
+                self.assertEqual(alerts.graded(s, db, was), 1)
+            finally:
+                notify.push = orig
+            self.assertEqual(sent[0][0], "Bet won!")
+            self.assertIn("WON Dallas Cowboys moneyline (LowVig): +$2.70", sent[0][1])
