@@ -22,11 +22,11 @@ def _bets(db: DB, pick_ids) -> list[dict]:
     ids = list(pick_ids)
     if not ids:
         return []
-    rows = db.all("SELECT b.*, p.market, p.selection, p.point, p.player, p.home, p.away, p.agent FROM bets b JOIN picks p ON p.id=b.pick_id "
+    rows = db.all("SELECT b.*, p.market, p.selection, p.point, p.player, p.home, p.away, p.event_id FROM bets b JOIN picks p ON p.id=b.pick_id "
                   "WHERE b.kind='real' AND b.pick_id IN (%s)" % ",".join("?" * len(ids)), ids)
     groups: dict[tuple, dict] = {}
     for r in rows:
-        k = (r["placed_at"], r["price"], r["home"], r["market"], r["selection"], r["point"])
+        k = (r["placed_at"], r["price"], r["event_id"], r["market"], r["selection"], r["point"])
         g = groups.setdefault(k, {**r, "stake": 0, "profit": 0})
         g["stake"] += r["stake_cents"] / 100
         g["profit"] += (r["profit_cents"] or 0) / 100

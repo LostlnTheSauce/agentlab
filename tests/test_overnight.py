@@ -306,3 +306,27 @@ class QuickBetLinks(unittest.TestCase):
                              book("pinnacle", None, 136), book("draftkings", None, 130), book("fanduel", None, 132)]}
         home = next(c for c in build_candidates([ev], "americanfootball_nfl", 3, my_books=["bovada", "lowvig"]) if c["selection"] == "Home")
         self.assertEqual(home["links"], {"bovada": "https://www.bovada.lv/g", "lowvig": "https://sports.lowvig.ag/g"})
+
+
+class MyBets(unittest.TestCase):
+    def test_scoreboard_splits_ceo_and_own_calls(self):
+        from lab import grading, ledger
+        from lab.state import build_state
+        with tempfile.TemporaryDirectory() as tmp:
+            s = settings(tmp)
+            db = DB(s.db_path)
+            lab = Lab(s, db, brain=Brain(s))
+            day = lab.today()
+            for pid, agent, real in (("a", "ursula", 1), ("b", "lydon", 0), ("c", "connie", 1)):
+                db.run("INSERT INTO picks(id,local_day,created_at,agent,event_id,sport,home,away,commence,market,selection,price,stake_units,real_pick,ceo_rank) "
+                       "VALUES(?,?,?,?,?,'americanfootball_nfl','H','A',?,'h2h','H',100,1,?,?)", (pid, day, iso(), agent, pid, iso(), real, 1 if real else None))
+                ledger.place_real(db, pid, 100, 2.0, "lowvig")
+            grading.manual_grade(db, "a", "win")
+            grading.manual_grade(db, "b", "loss")
+            m = build_state(s, db)["mine"]
+            self.assertEqual((m["all"]["n"], m["all"]["open"], m["all"]["w"], m["all"]["l"]), (3, 1, 1, 1))
+            self.assertEqual((m["ceo"]["n"], m["ceo"]["w"], m["ceo"]["profit"]), (2, 1, 2.0))
+            self.assertEqual((m["mine"]["n"], m["mine"]["l"], m["mine"]["profit"]), (1, 1, -2.0))
+            self.assertEqual(m["today_placed"], 3)
+            self.assertEqual({b["status"] for b in m["bets"]}, {"won", "lost", "open"})
+            self.assertEqual(next(b for b in m["bets"] if b["status"] == "open")["to_win"], 2.0)

@@ -19,7 +19,7 @@
     <div class="row1">
       <div class="seg" role="tablist" aria-label="Money">
         <button id="modePaper" class="on" role="tab" aria-selected="true">PAPER FIRM</button>
-        <button id="modeReal" role="tab" aria-selected="false">MY BOVADA</button>
+        <button id="modeReal" role="tab" aria-selected="false">REAL CASH</button>
       </div>
       <div class="live" id="live"><i></i><span id="liveTxt">loading…</span></div>
     </div>
@@ -80,12 +80,13 @@
     <div id="jailBox" hidden></div>
   </section>
 
-  <section class="view" id="v-ledger" aria-label="Ledger" hidden>
-    <div class="h">LEDGER <small>paper firm vs. what you actually placed</small></div>
+  <section class="view" id="v-ledger" aria-label="My bets" hidden>
+    <div class="h">MY BETS <small>every real bet you've placed</small></div>
+    <div id="myBets"></div>
+    <div class="h2">BEHIND THE SCENES</div>
     <div class="lgrid">
       <div class="box"><h3>PROFIT OVER TIME</h3><svg id="eq" viewBox="0 0 320 160" role="img" aria-label="Cumulative profit"></svg>
         <div class="legend"><span><i style="background:var(--lime)"></i>Paper firm</span><span><i style="background:var(--amber)"></i>Your real bets</span></div></div>
-      <div class="box"><h3 id="realHead">YOUR BOVADA BETS</h3><div class="list" id="realBets"></div></div>
       <div class="box"><h3>NEEDS A RESULT</h3><div class="list" id="needs"></div></div>
       <div class="box"><h3>THE ODDS API</h3><div id="credits"></div></div>
       <div class="box"><h3>CLAUDE API SPEND</h3><div id="claude"></div></div>
@@ -120,7 +121,7 @@
     <button class="on" data-v="office"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 1h10v10H1zM2 2v8h8V2zM3 3h2v2H3zm4 0h2v2H7zM3 7h6v1H3z"/></svg>OFFICE</button>
     <button data-v="slate"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 1h4v4H1zm6 0h4v4H7zM1 7h4v4H1zm6 0h4v4H7z"/></svg><span>SLATE<span class="badge" id="navBadge" hidden></span></span></button>
     <button data-v="tipsters"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M4 1h4v4H4zM2 6h8v5H2z"/></svg>TIPSTERS</button>
-    <button data-v="ledger"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 10h10v1H1zM2 6h2v4H2zm3-3h2v7H5zm3 2h2v5H8z"/></svg>LEDGER</button>
+    <button data-v="ledger"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 10h10v1H1zM2 6h2v4H2zm3-3h2v7H5zm3 2h2v5H8z"/></svg>MY BETS</button>
   </nav>
 </div>
 <script src="office.js"></script>

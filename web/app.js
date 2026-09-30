@@ -10,6 +10,7 @@ const cls=v=>v>0?'up':v<0?'down':'';
 const when=iso=>{const d=new Date(iso);return d.toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})};
 const ago=iso=>{const s=(Date.now()-new Date(iso))/1000;return s<90?Math.round(s)+'s ago':s<5400?Math.round(s/60)+'m ago':s<172800?Math.round(s/3600)+'h ago':Math.round(s/86400)+'d ago'};
 
+let seenPicks={};try{seenPicks=JSON.parse(localStorage.getItem('lab-seen-picks')||'{}')}catch(e){}
 let quickBet=true;try{quickBet=localStorage.getItem('lab-quickbet')!=='off'}catch(e){}
 let openPaper=false,S=null,mode='paper',view='office',filt='all',sortKey='units',fetchedAt=0,people={};
 try{mode=localStorage.getItem('lab-mode')||'paper';view=localStorage.getItem('lab-view')||'office'}catch(e){}
@@ -45,12 +46,12 @@ function header(){
     $('s2l').textContent='RECORD';$('s2').textContent=`${P.w}–${P.l}${P.p?'–'+P.p:''}`;
     $('s3l').textContent='TODAY';$('s3').textContent=`${today.length} picks · ${real.length} real`;
   }else{
-    $('kLabel').textContent='YOUR BOVADA RESULTS · REAL MONEY';
+    $('kLabel').textContent='REAL CASH · WHAT YOU ACTUALLY BET';
     $('bigNum').textContent=money(R.profit,true);$('bigChg').textContent=`${R.w}–${R.l}${R.p?'–'+R.p:''}`;$('bigChg').className='chg '+cls(R.profit);
     $('subLine').textContent=`on ${money(R.staked)} risked across ${R.w+R.l+R.p} settled bets · ${money(R.open)} open`;
     $('s1l').textContent='ROI';$('s1').textContent=pct(R.roi);$('s1').className=cls(R.roi);
     $('s2l').textContent='WALLETS LEFT';$('s2').textContent=money(R.balance);
-    $('s3l').textContent='TODAY';$('s3').textContent=`${real.filter(p=>p.decision==='placed').length} of ${real.length} placed`;
+    $('s3l').textContent='TODAY';$('s3').textContent=`${S.mine.today_placed} placed · ${real.length} recommended`;
   }
   const done=real.filter(p=>p.decision).length;
   $('barFill').style.width=(real.length?done/real.length*100:0)+'%';
@@ -70,11 +71,12 @@ function office(){
   const today=S.picks.filter(p=>p.local_day===S.day),byAgent=Object.fromEntries(S.agents.map(a=>[a.id,a]));
   const list=S.roster.tipsters.map((t,i)=>{
     const a=byAgent[t.id],mine=today.filter(p=>p.agent===t.id&&p.board!=='vetoed');
+    const fresh=mine.filter(p=>!seenPicks[t.id]||p.created_at>seenPicks[t.id]);
     let bubble;
     if(mode==='paper')bubble=a.paper.graded?{text:units(a.paper.units),tone:Math.sign(Math.round(a.paper.units*10))}
       :{text:mine.length?`${mine.length} PICK${mine.length>1?'S':''}`:(a.paper.open?`${a.paper.open} OPEN`:'0–0'),tone:0};
     else{const pr=a.real.profit;bubble=(a.real.w+a.real.l)?{text:money(pr,true),tone:Math.sign(Math.round(pr*100))}:{text:money(a.real_wallet),tone:0}}
-    return {id:t.id,name:t.name,desk:t.desk,look:t.look,i,bubble,hasPick:mine.length>0,realPick:mine.some(p=>p.real_pick),working:mine.length===0&&t.id!=='coin',broke:a.status==='BROKE'};
+    return {id:t.id,name:t.name,desk:t.desk,look:t.look,i,bubble,hasPick:fresh.length>0,realPick:fresh.some(p=>p.real_pick),working:mine.length===0&&t.id!=='coin',broke:a.status==='BROKE'};
   });
   people=Object.fromEntries(list.map(p=>[p.id,p]));
   const staff=Object.values(S.roster.staff).map((s,i)=>({...s,i:40+i,working:true}));
@@ -102,6 +104,8 @@ function openSheet(id){
   $('sheetMeth').textContent=who.method;
   $('sheetQuote').textContent='"'+who.quote+'"';
   const nums=$('sheetNums'),picks=$('sheetPicks');
+  if(t&&!jailed){const latest=S.picks.filter(x=>x.agent===id).map(x=>x.created_at).sort().pop();
+    if(latest){seenPicks[id]=latest;try{localStorage.setItem('lab-seen-picks',JSON.stringify(seenPicks))}catch(e){}office()}}
   if(t){const a=S.agents.find(x=>x.id===id),p=a.paper;
     nums.hidden=false;
     nums.innerHTML=p.graded?`<span>${p.w}–${p.l}${p.p?'–'+p.p:''}</span><span class="${cls(p.units)}">${units(p.units)}</span><span class="${cls(p.clv)}">CLV ${pct(p.clv)}</span><span>real wallet ${money(a.real_wallet)}</span>`
@@ -349,6 +353,41 @@ function jailBox(byAgent){
   box.querySelectorAll('canvas').forEach(c=>{const t=j.find(x=>x.id===c.dataset.id);if(t)sprite(c,t.look)});
 }
 
+/* ---------------------------------------------------------------- my bets */
+let betFilter='all';
+function myBetsView(){
+  const M=S.mine,A=M.all,box=$('myBets');
+  if(!M.bets.length){box.innerHTML='<div class="empty">No real bets yet. Tap BET on a pick in the Slate tab, place it on your sportsbook, then tap I PLACED IT, and it shows up here.</div>';return}
+  const rec=(t,label,c)=>`<div class="${c}"><b>${label}:</b> ${t.n} bet${t.n===1?'':'s'}${t.settled?` · ${t.w}–${t.l}${t.p?'–'+t.p:''} · <span class="${cls(t.profit)}">${money(t.profit,true)}</span>`:''}${t.open?` · ${t.open} open`:''}</div>`;
+  const rate=A.w+A.l?Math.round(A.w/(A.w+A.l)*100)+'%':'—';
+  const F=[['all','ALL',M.bets.length],['open','OPEN',A.open],['won','WON',A.w],['lost','LOST',A.l]];
+  if(A.p)F.push(['push','PUSH',A.p]);
+  const list=M.bets.filter(b=>betFilter==='all'||b.status===betFilter);
+  box.innerHTML=`<div class="score">
+      <div class="top"><span class="pl ${cls(A.profit)}">${money(A.profit,true)}</span><span class="sub">on ${money(A.staked)} settled${A.roi!=null?' · '+pct(A.roi)+' return':''}</span></div>
+      <div class="tiles">
+        <div class="tile"><b>OPEN</b><span>${A.open}</span></div>
+        <div class="tile"><b>SETTLED</b><span>${A.settled}</span></div>
+        <div class="tile"><b>WON</b><span class="up">${A.w}</span></div>
+        <div class="tile"><b>LOST</b><span class="down">${A.l}</span></div>
+        <div class="tile"><b>WIN RATE</b><span>${rate}</span></div>
+        <div class="tile"><b>RIDING</b><span>${money(A.open_stake)}</span></div>
+      </div>
+      <div class="split">${rec(M.ceo,'CEO recommended','ceo')}${rec(M.mine,'Your calls','own')}</div>
+    </div>
+    <div class="filters">${F.map(([k,l,n])=>`<button data-bf="${k}" class="${betFilter===k?'on':''}">${l} ${n}</button>`).join('')}</div>
+    <div class="betlist">${list.map(b=>{
+      const amt=b.status==='open'?`${money(b.to_win)}<small>TO WIN</small>`:b.status==='push'?`$0.00<small>PUSH</small>`:`<span class="${cls(b.profit)}">${money(b.profit,true)}</span><small>${b.status==='won'?'WON':'LOST'}</small>`;
+      const tag=b.recommended?`<span class="tag ceo">REAL $${b.ceo_rank?' #'+b.ceo_rank:''}</span>`:'<span class="tag own">YOUR CALL</span>';
+      const clv=b.clv!=null&&b.status!=='open'?` · CLV <span class="${cls(b.clv)}">${pct(b.clv)}</span>`:'';
+      return `<div class="brow ${b.status}"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
+        <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>${tag}
+          <div class="g">${esc(b.book)} · ${money(b.stake)} · ${esc(b.game)} · ${esc(when(b.commence))}</div>
+          <div class="g">${esc(b.agents.join(', '))}${clv}</div></div>
+        <div class="amt">${amt}</div></div>`}).join('')||'<div class="empty">Nothing here.</div>'}</div>`;
+  box.querySelectorAll('[data-bf]').forEach(x=>x.onclick=()=>{betFilter=x.dataset.bf;myBetsView()});
+}
+
 /* ---------------------------------------------------------------- ledger */
 function ledgerView(){
   const svg=$('eq'),P=S.paper.equity,R=S.real.equity,days=[...new Set([...P,...R].map(e=>e.d))].sort();
@@ -364,11 +403,7 @@ function ledgerView(){
     g+=`<text x="40" y="156" fill="#94aba1" font-family="VT323" font-size="13">${days[0].slice(5)}</text><text x="312" y="156" text-anchor="end" fill="#94aba1" font-family="VT323" font-size="13">${days[days.length-1].slice(5)}</text>`;
   }
   svg.innerHTML=g;
-  const bets=S.real.bets;
-  $('realHead').textContent=`YOUR BOVADA BETS · ${bets.length} RECENT`;
-  $('realBets').innerHTML=bets.length?bets.slice(0,15).map(b=>`<div class="li"><div><b>${esc(b.bet)} ${esc(b.price)}</b><div class="g">${esc(b.game)} · ${esc(b.agents.join(', '))} · ${money(b.stake)}${(S.config.books||[]).length>1?' · '+esc(b.book):''}</div></div>
-    <div class="r ${b.result?cls(b.profit):''}">${b.result?money(b.profit,true):`<span class="q" style="font-size:14px">to win</span> ${money(toWin(b.stake,parseInt(String(b.price).replace('−','-'),10)))}`}</div></div>`).join('')
-    :'<div class="q">Nothing placed yet. Real-money picks show up on the Slate tab with a BET button.</div>';
+  myBetsView();
   const needs=S.picks.filter(p=>S.needs_grading.includes(p.id));
   $('needs').innerHTML=needs.length?needs.map(p=>`<div class="li"><div><b>${esc(p.bet)}</b><div class="g">${esc(p.game)} · ${esc(p.agent_name)}</div></div>
     <div class="btnrow" style="margin:0">${['win','loss','push'].map(r=>`<button data-grade="${r}" data-id="${esc(p.id)}">${r.toUpperCase()}</button>`).join('')}</div></div>`).join('')

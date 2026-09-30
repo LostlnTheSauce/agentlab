@@ -79,6 +79,29 @@ a{color:var(--teal)}
 .chat .older{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
 .chat .older button{font:9px var(--f-display);padding:4px 7px;border:1px solid var(--line);color:var(--quiet)}
 .chat .older button.on{border-color:#72b6e6;color:#9fd3f5}
+/* my bets */
+.score{border:2px solid var(--amber);background:#1a170c;padding:12px 14px;display:grid;gap:10px}
+.score .top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.score .pl{font:40px/1 var(--f-data)}
+.score .sub{font:17px var(--f-data);color:var(--quiet)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px}
+.tile{border:1px solid #3a321a;padding:6px 8px;display:grid}
+.tile b{font:9px var(--f-display);letter-spacing:.06em;color:var(--quiet);font-weight:400}
+.tile span{font:22px/1.1 var(--f-data)}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:8px;font-size:12px}
+.split div{border-left:3px solid var(--line);padding-left:8px}
+.split .ceo{border-color:var(--amber)} .split .own{border-color:var(--teal)}
+.betlist{display:grid;gap:8px;margin-top:10px}
+.brow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;border:2px solid var(--line);background:var(--surface);padding:8px 10px}
+.brow.won{border-color:#2f6b49} .brow.lost{border-color:#7a3b35} .brow.open{border-color:var(--line)}
+.brow .st{font:10px var(--f-display);letter-spacing:.06em;padding:3px 6px;border:1px solid;min-width:52px;text-align:center}
+.brow .st.open{color:var(--quiet);border-color:var(--line)} .brow .st.won{color:#062019;background:var(--win);border-color:var(--win)}
+.brow .st.lost{color:var(--loss);border-color:#7a3b35} .brow .st.push{color:var(--quiet);border-color:var(--line)}
+.brow .what{min-width:0} .brow .what b{font-weight:500;overflow-wrap:anywhere} .brow .what .g{font-size:11px;color:var(--quiet)}
+.brow .amt{font:20px var(--f-data);text-align:right;white-space:nowrap}
+.brow .amt small{display:block;font:10px var(--f-display);color:var(--quiet);letter-spacing:.04em}
+.tag{font:9px var(--f-display);letter-spacing:.05em;padding:1px 5px;border:1px solid;margin-left:4px;white-space:nowrap}
+.tag.ceo{color:var(--amber-ink);background:var(--amber);border-color:var(--amber)} .tag.own{color:var(--teal);border-color:#2f6b5f}
 /* slate */
 .memo{border:2px solid var(--amber);background:#1a170c;padding:12px 14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start}
 .memo canvas{width:48px;height:60px;image-rendering:pixelated;background:#2a2412}

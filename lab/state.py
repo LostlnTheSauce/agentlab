@@ -9,7 +9,7 @@ from datetime import timedelta
 from . import ledger
 from . import oddsmath as om
 from .agents import describe
-from .db import DB, iso, local_day, utcnow
+from .db import DB, iso, local_day, parse, utcnow
 from .research import briefing
 from . import roster
 from .sources.odds import book_name, short
@@ -23,7 +23,7 @@ def pick_view(p: dict, ctx: dict, members: dict, real: dict, settings, names: di
     lead = p["group_id"] or p["id"]
     rb = real.get(p["id"])
     return {
-        "id": p["id"], "agent": p["agent"], "agent_name": names.get(p["agent"], {}).get("name", p["agent"]),
+        "id": p["id"], "agent": p["agent"], "created_at": p["created_at"], "agent_name": names.get(p["agent"], {}).get("name", p["agent"]),
         "sport": short(p["sport"]), "league": LEAGUE.get(p["sport"], short(p["sport"])),
         "game": f"{p['away']} @ {p['home']}", "commence": p["commence"], "bet": describe(p).rsplit(" ", 1)[0],
         "market": p["market"], "price": p["price"], "price_txt": om.fmt(p["price"]),
@@ -132,11 +132,11 @@ def build_state(settings, db: DB) -> dict:
             spend["today"] += c
     credit = db.one("SELECT remaining, used FROM credits WHERE remaining IS NOT NULL ORDER BY id DESC LIMIT 1") or {}
     today_credits = db.one("SELECT COALESCE(SUM(cost),0) c FROM credits WHERE local_day=?", (day,))["c"]
-    real_bets = db.all("SELECT b.pick_id, b.agent, b.stake_cents, b.price, b.result, b.profit_cents, b.placed_at, b.book, p.home, p.away, p.market, p.selection, p.point, p.player, p.commence "
+    real_bets = db.all("SELECT b.pick_id, b.agent, b.stake_cents, b.price, b.result, b.profit_cents, b.placed_at, b.book, p.event_id, p.home, p.away, p.market, p.selection, p.point, p.player, p.commence "
                        "FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' ORDER BY b.placed_at DESC LIMIT 60")
     grouped = {}
     for b in real_bets:
-        g = grouped.setdefault((b["placed_at"], b["price"], b["home"], b["market"], b["selection"], b["point"]), {
+        g = grouped.setdefault((b["placed_at"], b["price"], b["event_id"], b["market"], b["selection"], b["point"]), {
             "pick_id": b["pick_id"], "bet": describe({**b}).rsplit(" ", 1)[0], "price": om.fmt(b["price"]), "game": f"{b['away']} @ {b['home']}",
             "commence": b["commence"], "placed_at": b["placed_at"], "result": b["result"], "stake": 0, "profit": 0, "agents": [],
             "book": book_name(b["book"] or "bovada")})
@@ -157,6 +157,7 @@ def build_state(settings, db: DB) -> dict:
         "memo": memo, "runs": runs, "feed": db.all("SELECT at, agent, text FROM feed ORDER BY id DESC LIMIT 30"),
         "paper": {**totals("paper"), "seeded": seeded, "balance": round(sum(paper_w.values()), 2), "clv": clv["c"], "clv_n": clv["n"], "equity": equity("paper")},
         "real": {**totals("real"), "seeded": seeded, "balance": round(sum(real_w.values()), 2), "equity": equity("real"), "bets": list(grouped.values())},
+        "mine": my_bets(db, settings, names, day),
         "credits": {"today": today_credits, "cap": settings.daily_credit_cap, "remaining": credit.get("remaining"), "used": credit.get("used")},
         "claude": {"today": round(spend["today"], 2), "week": round(spend["week"], 2), "per_day": round(spend["week"] / 7, 2),
                    "tipster_model": settings.tipster_model, "ceo_model": settings.ceo_model},
@@ -193,6 +194,56 @@ def splits(db: DB, settings) -> dict[str, list[dict]]:
     for v in out.values():
         v.sort(key=lambda x: -(x["w"] + x["l"] + x["p"]))
     return out
+
+
+def my_bets(db: DB, settings, names: dict, day: str) -> dict:
+    """Every real bet you placed (merged tipsters' shares combined), plus totals split by
+    CEO-recommended vs. your own calls."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(settings.timezone)
+    rows = db.all("SELECT b.pick_id, b.agent, b.stake_cents, b.price, b.result, b.profit_cents, b.placed_at, b.settled_at, b.book, "
+                  "p.home, p.away, p.market, p.selection, p.point, p.player, p.commence, p.sport, p.real_pick, p.ceo_rank, p.clv, "
+                  "p.board_status, p.local_day, p.event_id FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' ORDER BY b.placed_at DESC, b.id")
+    groups: dict[tuple, dict] = {}
+    for r in rows:
+        k = (r["placed_at"], r["price"], r["event_id"], r["market"], r["selection"], r["point"])
+        g = groups.get(k)
+        if g is None:
+            g = groups[k] = {
+                "id": r["pick_id"], "bet": describe({**r}).rsplit(" ", 1)[0], "price": r["price"], "price_txt": om.fmt(r["price"]),
+                "book": book_name(r["book"] or "bovada"), "game": f"{r['away']} @ {r['home']}", "sport": short(r["sport"]) if r["market"] != "parlay" else "Parlay",
+                "commence": r["commence"], "placed_at": r["placed_at"], "result": r["result"], "stake": 0.0, "profit": 0.0,
+                "agents": [], "recommended": False, "ceo_rank": None, "clv": r["clv"],
+                "placed_day": parse(r["placed_at"]).astimezone(tz).date().isoformat(),
+            }
+        g["stake"] += r["stake_cents"] / 100
+        g["profit"] += (r["profit_cents"] or 0) / 100
+        name = names.get(r["agent"], {}).get("name", r["agent"])
+        if name not in g["agents"]:
+            g["agents"].append(name)
+        if r["real_pick"]:
+            g["recommended"] = True
+            g["ceo_rank"] = g["ceo_rank"] or r["ceo_rank"]
+    bets = list(groups.values())
+    for b in bets:
+        b["stake"], b["profit"] = round(b["stake"], 2), round(b["profit"], 2)
+        b["to_win"] = round(b["stake"] * (om.dec(b["price"]) - 1), 2)
+        b["status"] = "open" if not b["result"] else {"win": "won", "loss": "lost"}.get(b["result"], "push")
+
+    def tally(items):
+        done = [b for b in items if b["status"] != "open"]
+        staked = sum(b["stake"] for b in done)
+        profit = sum(b["profit"] for b in done)
+        return {"n": len(items), "open": sum(b["status"] == "open" for b in items), "settled": len(done),
+                "w": sum(b["status"] == "won" for b in done), "l": sum(b["status"] == "lost" for b in done),
+                "p": sum(b["status"] == "push" for b in done), "staked": round(staked, 2), "profit": round(profit, 2),
+                "roi": profit / staked if staked else None,
+                "open_stake": round(sum(b["stake"] for b in items if b["status"] == "open"), 2),
+                "open_to_win": round(sum(b["to_win"] for b in items if b["status"] == "open"), 2)}
+
+    return {"bets": bets, "all": tally(bets), "ceo": tally([b for b in bets if b["recommended"]]),
+            "mine": tally([b for b in bets if not b["recommended"]]),
+            "today_placed": sum(b["placed_day"] == day for b in bets)}
 
 
 def status_of(agent: dict, s: dict, real_wallet: float, settings) -> str:
