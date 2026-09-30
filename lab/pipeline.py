@@ -346,7 +346,7 @@ class Lab:
         if kind == "slate":
             memo = self.db.one("SELECT text FROM memos ORDER BY created_at DESC LIMIT 1")
             body = f"{len(real_picks)} for real money, {len(new)} picks total.\n" + "\n".join(
-                f"• {describe(p)} ({p['agent_name']}), floor {om.fmt(p['min_price'])}" for p in real_picks[:6])
+                f"• {describe(p)}{self._at(p)} ({p['agent_name']}), floor {om.fmt(p['min_price'])}" for p in real_picks[:6])
             notify.push(self.s, "Morning slate is ready", body + ("\n\n" + memo["text"][:300] if memo else ""))
         elif real_picks:
             body = "\n".join(f"• {describe(p)} ({p['agent_name']}, {matchup(p)}), don't take worse than {om.fmt(p['min_price'])}" for p in real_picks)
