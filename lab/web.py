@@ -165,6 +165,15 @@ def create_app(settings=None, db: DB | None = None) -> Flask:
         except (ValueError, BudgetError, SourceError) as e:
             return jsonify(error=str(e)), 400
 
+    @app.post("/api/alert-test")
+    def alert_test():
+        from . import notify
+        if not s.ntfy_topic:
+            return jsonify(error="Phone alerts are off: NTFY_TOPIC isn't set in .env"), 400
+        ok = notify.push(s, "Agent Lab test alert", "If you can read this, phone alerts work. The morning slate, late picks, "
+                                                    "results and the nightly recap will arrive here.", priority="high")
+        return (jsonify(ok=True), 200) if ok else (jsonify(error="The server couldn't reach ntfy.sh"), 502)
+
     @app.post("/api/run")
     def run_now():
         kind = (request.get_json(silent=True) or {}).get("kind", "slate")
