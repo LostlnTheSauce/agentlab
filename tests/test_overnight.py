@@ -260,3 +260,25 @@ class FreshSlate(unittest.TestCase):
             self.assertEqual({r["id"] for r in lab.db.all("SELECT id FROM picks")}, {"b", "c"})
             self.assertIsNone(lab.db.one("SELECT 1 FROM memos"))
             self.assertIsNone(lab.db.one("SELECT 1 FROM bets WHERE pick_id='a'"))
+
+
+class ParlayBooks(unittest.TestCase):
+    def test_parlay_stays_at_one_book(self):
+        from lab import board
+        lydon = {"id": "lydon", "name": "Lydon"}
+        now = datetime.now(timezone.utc)
+
+        def leg(pid, ev, prices, fair=0.5):
+            best = max(prices, key=lambda k: om.dec(prices[k]))
+            return {"id": pid, "agent": "quinn", "agent_name": "Quinn", "event_id": ev, "sport": "americanfootball_nfl", "home": "H", "away": "A",
+                    "commence": iso(now + timedelta(hours=5)), "market": "h2h", "selection": "H", "point": None, "player": None,
+                    "price": prices[best], "book": best, "prices": prices, "fair_prob": fair, "edge": om.edge(fair, prices[best]),
+                    "books": 6, "estimated": False, "board_status": "cleared", "reasoning": "r", "group_id": None}
+        a = leg("a", "e1", {"lowvig": 104, "bovada": 100})
+        b = leg("b", "e2", {"bovada": 102, "lowvig": 101})
+        c = leg("c", "e3", {"betonlineag": 105})
+        opts = board.parlay_options([a, b, c], lydon, "d", now)
+        ab = next(o for o in opts if set(o["legs"]) == {"a", "b"})
+        self.assertEqual(ab["book"], "lowvig")  # 2.04*2.01 beats 2.00*2.02
+        self.assertEqual(ab["price"], om.american_from_dec(2.04 * 2.01))
+        self.assertFalse(any("c" in o["legs"] for o in opts))  # no single book has c with a or b

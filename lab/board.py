@@ -139,6 +139,14 @@ def _leg_txt(l: dict) -> str:
     return l["selection"]
 
 
+def _leg_prices(l: dict) -> dict:
+    pr = l.get("prices")
+    if isinstance(pr, str):
+        import json
+        pr = json.loads(pr)
+    return pr or {l.get("book") or "bovada": l["price"]}
+
+
 def parlay_options(pool: list[dict], agent: dict, day: str, now: datetime, limit: int = 5) -> list[dict]:
     """Lydon's candidates: pairs of other tipsters' cleared straight picks from different games."""
     legs = [p for p in pool if p["board_status"] == "cleared" and not p.get("paper_only") and p["market"] in ("h2h", "spreads", "totals")
@@ -150,22 +158,29 @@ def parlay_options(pool: list[dict], agent: dict, day: str, now: datetime, limit
         for b in legs[i + 1:]:
             if a["event_id"] == b["event_id"]:
                 continue
-            d = om.dec(a["price"]) * om.dec(b["price"])
+            # a parlay lives at one book: use a book that offers both legs, the one that pays best
+            pa, pb = _leg_prices(a), _leg_prices(b)
+            common = [k for k in pa if k in pb]
+            if not common:
+                continue
+            book = max(common, key=lambda k: om.dec(pa[k]) * om.dec(pb[k]))
+            d = om.dec(pa[book]) * om.dec(pb[book])
             fair = a["fair_prob"] * b["fair_prob"]
             edge = fair * d - 1
             if edge < PARLAY_VETO:
                 continue
             x, y = sorted((a, b), key=lambda l: l["commence"])
+            px, py = _leg_prices(x)[book], _leg_prices(y)[book]
             out.append({
                 "id": f"parlay-{day}-{x['id'][:5]}{y['id'][:5]}", "agent": agent["id"], "agent_name": agent["name"],
                 "event_id": x["event_id"], "sport": x["sport"], "home": x["home"], "away": x["away"], "commence": x["commence"],
                 "market": "parlay", "selection": f"{_leg_txt(x)} + {_leg_txt(y)}", "point": None, "player": None,
                 "price": om.american_from_dec(d), "fair_prob": fair, "edge": edge, "min_price": None,
                 "books": min(x["books"] or 0, y["books"] or 0), "estimated": True, "quote_at": None, "dispersion": None,
-                "legs": [x["id"], y["id"]], "leg_picks": [x, y],
-                "signal": (f"Leg 1: {x['agent_name']}'s {_leg_txt(x)} {om.fmt(x['price'])} ({x['away']} at {x['home']}), "
+                "legs": [x["id"], y["id"]], "leg_picks": [x, y], "book": book, "prices": None,
+                "signal": (f"At {BOOK_NAMES.get(book, book)}. Leg 1: {x['agent_name']}'s {_leg_txt(x)} {om.fmt(px)} ({x['away']} at {x['home']}), "
                            f"{x['edge'] * 100:+.1f}% vs fair. Their case: {x['reasoning'][:220]} "
-                           f"Leg 2: {y['agent_name']}'s {_leg_txt(y)} {om.fmt(y['price'])} ({y['away']} at {y['home']}), "
+                           f"Leg 2: {y['agent_name']}'s {_leg_txt(y)} {om.fmt(py)} ({y['away']} at {y['home']}), "
                            f"{y['edge'] * 100:+.1f}% vs fair. Their case: {y['reasoning'][:220]} "
                            f"Combined: {om.fmt(om.american_from_dec(d))}, {edge * 100:+.1f}% vs fair."),
             })
@@ -175,7 +190,8 @@ def parlay_options(pool: list[dict], agent: dict, day: str, now: datetime, limit
 
 def finalize_parlay(p: dict) -> dict:
     """The board's verdict on the parlay Lydon chose."""
-    notes = ["Mara: the price multiplies the two straight prices. Bovada's parlay price may differ slightly; enter what you actually get."]
+    where = BOOK_NAMES.get(p.get("book") or "bovada", "the book")
+    notes = [f"Mara: both legs are at {where}; the price multiplies the two straight prices there. {where}'s parlay price may differ slightly; enter what you actually get."]
     p["paper_only"] = p["edge"] < PARLAY_REAL
     if p["paper_only"]:
         notes.append(f"Barb: combined {p['edge'] * 100:+.1f}% vs fair. Parlay juice stacks up, so this one rides on paper (real money needs {PARLAY_REAL * 100:.0f}% or better).")
