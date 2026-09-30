@@ -1,0 +1,15 @@
+:root{--bg:#081718;--surface:#102426;--line:#2c4a48;--ink:#e4ede5;--quiet:#94aba1;--lime:#c7f78c;--loss:#ff8e80;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);min-height:100%}
+body{font:13px/1.5 "IBM Plex Mono",ui-monospace,Consolas,monospace;background-image:radial-gradient(#1a3533 1px,transparent 1px);background-size:22px 22px;display:grid;place-items:center;min-height:100vh;padding:16px}
+main{width:min(100%,360px);border:2px solid var(--line);background:var(--surface);padding:24px;display:grid;gap:10px;box-shadow:0 8px 0 #000a}
+h1{font:700 26px "Silkscreen",monospace;letter-spacing:.06em;margin:0;color:var(--lime)}
+.sub{font:18px "VT323",monospace;color:var(--quiet);margin:0 0 8px}
+form{display:grid;gap:8px}
+label{font:11px "Silkscreen",monospace;letter-spacing:.08em;color:var(--quiet)}
+input{background:var(--bg);border:2px solid var(--line);color:var(--ink);padding:10px;font:22px "VT323",monospace;width:100%}
+input:focus-visible,button:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+button{font:13px "Silkscreen",monospace;letter-spacing:.06em;padding:10px;background:var(--lime);color:#10230f;border:2px solid #e4ffc4;cursor:pointer}
+.err{color:var(--loss);min-height:1.2em;margin:0;font-size:12px}
+.door{display:flex;gap:4px;height:10px}
+.door i{flex:1;background:repeating-linear-gradient(90deg,#f0c281 0 6px,#d9a24e 6px 8px)}

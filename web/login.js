@@ -1,0 +1,1 @@
+(function(){var e=new URLSearchParams(location.search).get('e');var m={bad:'Wrong password.',locked:'Too many attempts. Try again in 15 minutes.',nopass:'No password set yet. On the server run: python -m lab set-password'}[e];if(m)document.getElementById('err').textContent=m;})();

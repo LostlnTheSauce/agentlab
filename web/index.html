@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#081718">
+<title>Agent Lab</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="banner" id="banner" hidden></div>
+
+  <header class="top" aria-label="Scoreboard">
+    <div class="row1">
+      <div class="seg" role="tablist" aria-label="Money">
+        <button id="modePaper" class="on" role="tab" aria-selected="true">PAPER FIRM</button>
+        <button id="modeReal" role="tab" aria-selected="false">MY BOVADA</button>
+      </div>
+      <div class="live" id="live"><i></i><span id="liveTxt">loading…</span></div>
+    </div>
+    <div class="kicker" id="kLabel"></div>
+    <div class="big"><span id="bigNum">—</span><span class="chg" id="bigChg"></span></div>
+    <div class="sub" id="subLine"></div>
+    <div class="stats">
+      <div><b id="s1l">AVG CLV</b><span id="s1">—</span></div>
+      <div><b id="s2l">RECORD</b><span id="s2">—</span></div>
+      <div><b id="s3l">TODAY</b><span id="s3">—</span></div>
+    </div>
+    <div class="bar" aria-hidden="true"><i id="barFill" style="width:0"></i></div>
+    <div class="barlab" id="barLab"></div>
+  </header>
+
+  <section class="view" id="v-office" aria-label="Office">
+    <div class="h">THE TRADING FLOOR <small>drag · pinch or double-tap to zoom · tap anyone</small></div>
+    <div class="stage">
+      <canvas id="office" aria-label="Isometric office with 20 tipsters at desks, a CEO office and a risk board room"></canvas>
+      <div class="ctrls"><button id="zFit">FIT</button><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button class="alt" id="toSlate">SLATE</button></div>
+      <div class="sheet" id="sheet" hidden>
+        <button class="x" id="sheetX" aria-label="Close">X</button>
+        <canvas class="av" id="sheetAv" width="13" height="16"></canvas>
+        <div class="nm" id="sheetNm"></div>
+        <div class="role" id="sheetRole"></div>
+        <div class="meth" id="sheetMeth"></div>
+        <div class="nums" id="sheetNums"></div>
+        <div class="picks" id="sheetPicks"></div>
+        <div class="quote" id="sheetQuote"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="v-slate" aria-label="Today's slate" hidden>
+    <div class="h">TODAY'S SLATE <small id="slateWhen"></small></div>
+    <div class="memo">
+      <canvas id="ceoAv" width="13" height="16"></canvas>
+      <div><b>MEMO FROM THE COMMISH</b><p id="memo">No memo yet today. The morning slate runs automatically.</p></div>
+    </div>
+    <div class="filters" id="filters"></div>
+    <div class="cards" id="cards"></div>
+    <div class="h2" id="openHead" hidden>STILL OPEN FROM EARLIER</div>
+    <div class="cards" id="openCards"></div>
+  </section>
+
+  <section class="view" id="v-tipsters" aria-label="Tipsters" hidden>
+    <div id="meetingBox"></div>
+    <div class="h" style="margin-top:14px">TIPSTER STANDINGS <small id="unitNote"></small></div>
+    <div class="tbl"><table>
+      <thead><tr>
+        <th>TIPSTER</th><th>DESK</th><th><button data-s="rec">RECORD</button></th><th><button data-s="units" class="on">UNITS</button></th>
+        <th><button data-s="roi">ROI</button></th><th><button data-s="clv">CLV</button></th><th>LAST 10</th><th><button data-s="real">REAL $</button></th><th>STATUS</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+    <div class="notice" id="tipNotice"></div>
+    <div id="jailBox" hidden></div>
+  </section>
+
+  <section class="view" id="v-ledger" aria-label="Ledger" hidden>
+    <div class="h">LEDGER <small>paper firm vs. what you actually placed</small></div>
+    <div class="lgrid">
+      <div class="box"><h3>PROFIT OVER TIME</h3><svg id="eq" viewBox="0 0 320 160" role="img" aria-label="Cumulative profit"></svg>
+        <div class="legend"><span><i style="background:var(--lime)"></i>Paper firm</span><span><i style="background:var(--amber)"></i>Your real bets</span></div></div>
+      <div class="box"><h3 id="realHead">YOUR BOVADA BETS</h3><div class="list" id="realBets"></div></div>
+      <div class="box"><h3>NEEDS A RESULT</h3><div class="list" id="needs"></div></div>
+      <div class="box"><h3>THE ODDS API</h3><div id="credits"></div></div>
+      <div class="box"><h3>CLAUDE API SPEND</h3><div id="claude"></div></div>
+      <div class="box"><h3>RUNS</h3><div class="list" id="runs"></div>
+        <div class="btnrow"><button id="runSlate">RUN SLATE NOW</button><button id="runRescan">RESCAN</button><button id="runGrade">GRADE GAMES</button></div></div>
+      <div class="box"><h3>HOUSE RULES</h3><div id="rules" style="font-size:12px"></div>
+        <form method="post" action="logout" class="btnrow"><button type="submit">SIGN OUT</button></form></div>
+    </div>
+  </section>
+</div>
+
+<dialog id="placeDlg">
+  <form method="dialog" id="placeForm">
+    <h3>PLACE ON BOVADA</h3>
+    <div id="placeWhat" class="mkt" style="font-size:22px"></div>
+    <ol id="placeSteps"></ol>
+    <div class="frow">
+      <label>PRICE YOU GOT<input id="placePrice" inputmode="numeric" autocomplete="off"></label>
+      <label>STAKE ($)<input id="placeStake" inputmode="decimal" autocomplete="off"></label>
+    </div>
+    <div class="win" id="placeWin"></div>
+    <div class="warn" id="placeWarn"></div>
+    <div class="acts"><button class="teal" id="placeOk" value="ok">I PLACED IT</button><button id="placeCopy" type="button">COPY BET</button><button value="cancel" formnovalidate>CANCEL</button></div>
+  </form>
+</dialog>
+
+<div class="foot">
+  <div class="ticker" aria-hidden="true"><span id="ticker">Paper bets, real odds. You place real money yourself.</span></div>
+  <nav aria-label="Views">
+    <button class="on" data-v="office"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 1h10v10H1zM2 2v8h8V2zM3 3h2v2H3zm4 0h2v2H7zM3 7h6v1H3z"/></svg>OFFICE</button>
+    <button data-v="slate"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 1h4v4H1zm6 0h4v4H7zM1 7h4v4H1zm6 0h4v4H7z"/></svg><span>SLATE<span class="badge" id="navBadge" hidden></span></span></button>
+    <button data-v="tipsters"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M4 1h4v4H4zM2 6h8v5H2z"/></svg>TIPSTERS</button>
+    <button data-v="ledger"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 10h10v1H1zM2 6h2v4H2zm3-3h2v7H5zm3 2h2v5H8z"/></svg>LEDGER</button>
+  </nav>
+</div>
+<script src="office.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

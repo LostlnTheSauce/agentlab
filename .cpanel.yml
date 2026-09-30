@@ -1,0 +1,11 @@
+---
+# cPanel "Git Version Control" runs these on "Deploy HEAD Commit".
+# Copies the app into the live folder, installs any new packages, and tells Passenger to restart.
+# data/ and .env on the server are never touched.
+deployment:
+  tasks:
+    - export DEPLOYPATH=$HOME/agentlab/
+    - /bin/cp -R lab web tests passenger_wsgi.py requirements.txt README.md .env.example $DEPLOYPATH
+    - $HOME/virtualenv/agentlab/3.13/bin/pip install -q -r ${DEPLOYPATH}requirements.txt
+    - /bin/mkdir -p ${DEPLOYPATH}tmp
+    - /bin/touch ${DEPLOYPATH}tmp/restart.txt

@@ -1,0 +1,633 @@
+<title>Agent Lab Office</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: phone-first app shell. Scoreboard header, one view at a time (isometric office / CEO slate / tipster table / ledger), fixed bottom nav + ticker. Deliberately single dark theme, matching the existing Agent Lab palette. */
+:root{
+  --bg:#081718; --surface:#102426; --raised:#163233; --line:#2c4a48;
+  --ink:#e4ede5; --quiet:#94aba1; --lime:#c7f78c; --teal:#5ed3b4;
+  --win:#7be3a4; --loss:#ff8e80; --amber:#f0c281; --flag:#c9a7ff; --amber-ink:#2a1c05;
+  --f-display:"Silkscreen", ui-monospace, Consolas, monospace;
+  --f-data:"VT323", ui-monospace, Consolas, monospace;
+  --f-body:"IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{font:13px/1.5 var(--f-body);background-image:radial-gradient(#1a3533 1px,transparent 1px);background-size:22px 22px}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:14px 130px}
+.up{color:var(--win)} .down{color:var(--loss)} .q{color:var(--quiet)}
+.mock{font:11px var(--f-body);color:var(--amber);border:1px dashed #6b5a36;padding:6px 10px;margin-bottom:12px;background:#1b1a10}
+
+/* scoreboard */
+.top{border:2px solid var(--line);background:var(--surface);padding:12px 14px;display:grid;gap:6px}
+.row1{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.seg{display:flex;gap:6px}
+.seg button{font:12px var(--f-display);letter-spacing:.06em;padding:7px 10px;border:2px solid var(--line);color:var(--quiet);background:var(--bg)}
+.seg button.on{background:var(--lime);color:#10230f;border-color:#e4ffc4;box-shadow:inset 0 -3px 0 #86b85a}
+.live{font:18px var(--f-data);color:var(--quiet);display:flex;align-items:center;gap:8px}
+.live i{width:10px;height:10px;background:var(--win);display:inline-block;animation:blink 1.6s steps(1) infinite}
+@keyframes blink{50%{opacity:.25}}
+.kicker{font:11px var(--f-display);letter-spacing:.1em;color:var(--quiet);margin-top:4px}
+.big{font:44px/1 var(--f-data);display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.big .chg{font-size:24px}
+.sub{font:17px/1.2 var(--f-data);color:var(--quiet)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:4px}
+.stats div{display:grid;gap:0;min-width:0}
+.stats b{font:10px var(--f-display);letter-spacing:.08em;color:var(--quiet);font-weight:400}
+.stats span{font:21px/1.1 var(--f-data)}
+.bar{height:16px;border:2px solid var(--line);background:#050f10;margin-top:4px;position:relative}
+.bar i{position:absolute;inset:0 auto 0 0;background:repeating-linear-gradient(90deg,var(--amber) 0 6px,#d9a24e 6px 8px);transition:width .4s}
+.barlab{font:16px var(--f-data);color:var(--quiet)}
+
+/* views */
+.view{margin-top:14px}
+.view[hidden]{display:none!important}
+.h{font:13px var(--f-display);letter-spacing:.08em;display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.h small{font:16px var(--f-data);color:var(--quiet);letter-spacing:0}
+
+/* office */
+.stage{position:relative;border:2px solid var(--line);background:#07130f;height:min(68vh,620px);min-height:420px;overflow:hidden}
+#office{width:100%;height:100%;display:block;touch-action:none;cursor:grab;image-rendering:pixelated}
+#office.drag{cursor:grabbing}
+.ctrls{position:absolute;top:10px;right:10px;display:flex;gap:6px}
+.ctrls button{font:12px var(--f-display);padding:6px 10px;background:#0c2224;border:2px solid var(--line);min-width:36px}
+.ctrls button.alt{background:var(--amber);color:var(--amber-ink);border-color:#ffe2a8}
+.hint{position:absolute;left:10px;top:10px;font:15px var(--f-data);color:var(--quiet);background:#07130fcc;padding:2px 8px;border:1px solid var(--line)}
+.sheet{position:absolute;left:10px;right:10px;bottom:10px;max-width:460px;background:var(--surface);border:2px solid var(--lime);padding:12px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;box-shadow:0 6px 0 #000a}
+.sheet .av{grid-row:span 3;width:52px;height:64px;image-rendering:pixelated;background:var(--raised);border:1px solid var(--line)}
+.sheet .nm{font:15px var(--f-display);letter-spacing:.04em}
+.sheet .role{font:16px/1.1 var(--f-data);color:var(--teal)}
+.sheet .meth{font-size:12px;color:var(--quiet)}
+.sheet .nums{grid-column:1/-1;display:flex;gap:14px;flex-wrap:wrap;font:18px var(--f-data);border-top:1px solid var(--line);padding-top:6px;margin-top:4px}
+.sheet .quote{grid-column:1/-1;font-size:12px;font-style:italic}
+.sheet .pickline{grid-column:1/-1;font-size:12px;background:var(--bg);border:1px solid var(--line);padding:6px 8px}
+.sheet .x{position:absolute;top:6px;right:8px;font:14px var(--f-display);color:var(--quiet)}
+
+/* slate */
+.memo{border:2px solid var(--amber);background:#1a170c;padding:12px 14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start}
+.memo canvas{width:48px;height:60px;image-rendering:pixelated;background:#2a2412}
+.memo b{font:12px var(--f-display);letter-spacing:.08em;color:var(--amber);font-weight:400}
+.memo p{margin:.3em 0 0;max-width:70ch}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+.filters button{font:11px var(--f-display);padding:6px 9px;border:2px solid var(--line);color:var(--quiet)}
+.filters button.on{border-color:var(--lime);color:var(--lime)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:12px}
+.card{border:2px solid var(--line);background:var(--surface);padding:12px;display:grid;gap:8px;align-content:start;min-width:0}
+.card.vetoed{opacity:.62}
+.card.taken{border-color:var(--lime)}
+.card.placed{border-color:var(--teal)}
+.chead{display:flex;align-items:center;gap:10px}
+.chead canvas{width:30px;height:38px;image-rendering:pixelated;flex:none}
+.chead .who{min-width:0;flex:1}
+.chead .who b{font:12px var(--f-display);display:block;font-weight:400}
+.chead .who span{font:15px/1 var(--f-data);color:var(--quiet)}
+.pill{font:10px var(--f-display);letter-spacing:.06em;padding:3px 6px;border:1px solid;white-space:nowrap}
+.pill.cleared{color:var(--win);border-color:#2f6b49}
+.pill.flagged{color:var(--flag);border-color:#5d4a86}
+.pill.vetoed{color:var(--loss);border-color:#7a3b35}
+.pill.taken{color:#10230f;background:var(--lime);border-color:var(--lime)}
+.pill.placed{color:#062019;background:var(--teal);border-color:var(--teal)}
+.pill.passed{color:var(--quiet);border-color:var(--line)}
+.mkt{font:26px/1 var(--f-data)}
+.game{font-size:12px;color:var(--quiet)}
+.odds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;background:var(--bg);border:1px solid var(--line);padding:6px 8px}
+.odds div{display:grid;min-width:0}
+.odds b{font:9px var(--f-display);color:var(--quiet);font-weight:400;letter-spacing:.06em}
+.odds span{font:20px/1.1 var(--f-data);font-variant-numeric:tabular-nums}
+.why{font-size:12px;margin:0}
+.board{font-size:12px;border-left:3px solid var(--line);padding-left:8px;color:var(--quiet)}
+.board.flagged{border-color:var(--flag)} .board.vetoed{border-color:var(--loss)} .board.cleared{border-color:#2f6b49}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.acts button{font:11px var(--f-display);letter-spacing:.05em;padding:8px 10px;border:2px solid var(--line);background:var(--raised)}
+.acts button.pri{background:var(--lime);color:#10230f;border-color:#e4ffc4}
+.acts button.teal{background:var(--teal);color:#062019;border-color:#a8f1de}
+.toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:var(--lime);color:#10230f;font:12px var(--f-display);padding:8px 12px;border:2px solid #e4ffc4;z-index:40}
+
+/* table */
+.tbl{overflow-x:auto;border:2px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-variant-numeric:tabular-nums}
+th{font:10px var(--f-display);letter-spacing:.06em;color:var(--quiet);text-align:left;padding:8px 10px;border-bottom:2px solid var(--line);font-weight:400;white-space:nowrap}
+th button{font:inherit;color:inherit;letter-spacing:inherit}
+th button.on{color:var(--lime)}
+td{padding:6px 10px;border-bottom:1px solid #1b3634;white-space:nowrap}
+td.n{font:19px var(--f-data)}
+.agentcell{display:flex;align-items:center;gap:8px}
+.agentcell canvas{width:22px;height:28px;image-rendering:pixelated}
+.agentcell b{font-weight:500}
+.form{display:flex;gap:2px}
+.form i{width:7px;height:12px;display:block}
+.status{font:10px var(--f-display);padding:2px 5px;border:1px solid}
+.notice{margin-top:12px;border:2px dashed #7a3b35;padding:10px 12px;font-size:12px;color:var(--loss)}
+
+/* ledger */
+.lgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
+.box{border:2px solid var(--line);background:var(--surface);padding:12px;min-width:0}
+.box h3{font:11px var(--f-display);letter-spacing:.08em;color:var(--quiet);margin:0 0 8px;font-weight:400}
+.box svg{width:100%;height:auto;display:block}
+.meter{height:12px;background:var(--bg);border:1px solid var(--line);margin:6px 0}
+.meter i{display:block;height:100%;background:var(--teal)}
+.bets{display:grid;gap:0}
+.bet{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:7px 0;border-bottom:1px solid #1b3634}
+.bet b{font-weight:500}
+.bet .r{font:20px var(--f-data);text-align:right}
+.bet .g{font-size:11px;color:var(--quiet)}
+
+/* nav + ticker */
+.foot{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#061213;border-top:2px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.ticker{overflow:hidden;white-space:nowrap;border-bottom:1px solid var(--line);font:16px var(--f-data);color:var(--quiet);padding:3px 0}
+.ticker span{display:inline-block;padding-left:100%;animation:tick 70s linear infinite}
+@keyframes tick{to{transform:translateX(-100%)}}
+nav{display:grid;grid-template-columns:repeat(4,1fr);max-width:1100px;margin:0 auto}
+nav button{display:grid;justify-items:center;gap:3px;padding:8px 4px 10px;font:11px var(--f-display);letter-spacing:.06em;color:var(--quiet);border-bottom:3px solid transparent}
+nav button svg{width:24px;height:24px}
+nav button.on{color:var(--lime);border-bottom-color:var(--lime)}
+nav .badge{font:9px var(--f-display);background:var(--amber);color:var(--amber-ink);padding:0 4px;margin-left:3px}
+@media (prefers-reduced-motion:reduce){.ticker span,.live i{animation:none}.ticker span{padding-left:0}}
+@media (max-width:520px){.big{font-size:38px}.stats span{font-size:18px}.odds span{font-size:18px}}
+</style>
+
+<div class="wrap">
+  <div class="mock">MOCKUP · every pick, price, record and dollar figure here is made-up sample data. Nothing is a real line.</div>
+
+  <header class="top" aria-label="Scoreboard">
+    <div class="row1">
+      <div class="seg" role="tablist" aria-label="Scoreboard mode">
+        <button id="modePaper" class="on" role="tab" aria-selected="true">PAPER FIRM</button>
+        <button id="modeReal" role="tab" aria-selected="false">MY BOVADA</button>
+      </div>
+      <div class="live"><i></i>odds pulled <span id="ago">4</span>s ago</div>
+    </div>
+    <div class="kicker" id="kLabel">FIRM BANKROLL · 20 TIPSTERS · PAPER</div>
+    <div class="big"><span id="bigNum">$2,142.60</span><span class="chg up" id="bigChg">+7.1%</span></div>
+    <div class="sub" id="subLine">on $2,000 seeded ($100 per tipster) · season opened Sep 4</div>
+    <div class="stats">
+      <div><b>AVG CLV</b><span id="s1" class="up">+0.6%</span></div>
+      <div><b id="s2l">RECORD</b><span id="s2">312–281–9</span></div>
+      <div><b>PROFIT</b><span id="s3" class="up">+$142.60</span></div>
+    </div>
+    <div class="bar" aria-hidden="true"><i id="barFill"></i></div>
+    <div class="barlab" id="barLab"></div>
+  </header>
+
+  <!-- OFFICE -->
+  <section class="view" id="v-office" aria-label="Office">
+    <div class="h">THE TRADING FLOOR <small>drag to look around · tap anyone</small></div>
+    <div class="stage">
+      <canvas id="office" aria-label="Isometric office with 20 tipsters at desks, a CEO office and a risk board room"></canvas>
+      <div class="ctrls"><button id="zFit">FIT</button><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button class="alt" id="toSlate">SLATE</button></div>
+      <div class="sheet" id="sheet" hidden>
+        <button class="x" id="sheetX" aria-label="Close">X</button>
+        <canvas class="av" id="sheetAv" width="13" height="16"></canvas>
+        <div class="nm" id="sheetNm"></div>
+        <div class="role" id="sheetRole"></div>
+        <div class="meth" id="sheetMeth"></div>
+        <div class="nums" id="sheetNums"></div>
+        <div class="pickline" id="sheetPick"></div>
+        <div class="quote" id="sheetQuote"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SLATE -->
+  <section class="view" id="v-slate" aria-label="Today's slate" hidden>
+    <div class="h">TODAY'S SLATE <small>Tue Sep 29 · built 7:02 AM CT</small></div>
+    <div class="memo">
+      <canvas id="ceoAv" width="13" height="16"></canvas>
+      <div>
+        <b>MEMO FROM THE COMMISH</b>
+        <p>Morning. Nine picks came in overnight from 8 tipsters. The risk board cleared six, flagged two and vetoed one. Best number on the board is Quinn's Bengals +3.5, a full point off the sharp market. If you only take two, take that and Mateo's Padres. Everything cleared adds up to <strong id="expo">9.0u</strong>.</p>
+      </div>
+    </div>
+    <div class="filters" id="filters">
+      <button class="on" data-f="all">ALL 9</button><button data-f="cleared">CLEARED</button><button data-f="flagged">FLAGGED</button><button data-f="vetoed">VETOED</button><button data-f="mine">MY PICKS</button>
+    </div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <!-- TIPSTERS -->
+  <section class="view" id="v-tipsters" aria-label="Tipsters" hidden>
+    <div class="h">TIPSTER STANDINGS <small>season to date · 1 unit = $10 paper</small></div>
+    <div class="tbl"><table>
+      <thead><tr>
+        <th>TIPSTER</th><th>DESK</th><th><button data-s="rec">RECORD</button></th><th><button data-s="u" class="on">UNITS</button></th><th><button data-s="roi">ROI</button></th><th><button data-s="clv">CLV</button></th><th>LAST 10</th><th>STATUS</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+    <div class="notice"><strong>On notice:</strong> Connie is −3.4u with negative CLV after 21 bets. Two more losing weeks and the board replaces her with a new hire. Coin Flip picks at random; anyone below him is doing worse than chance.</div>
+  </section>
+
+  <!-- LEDGER -->
+  <section class="view" id="v-ledger" aria-label="Ledger" hidden>
+    <div class="h">LEDGER <small>paper firm vs. what you actually placed</small></div>
+    <div class="lgrid">
+      <div class="box">
+        <h3>FIRM PAPER BANKROLL · LAST 26 DAYS</h3>
+        <svg id="eq" viewBox="0 0 320 150" role="img" aria-label="Paper bankroll line rising from $2,000 to $2,142.60"></svg>
+      </div>
+      <div class="box">
+        <h3>YOUR BOVADA BETS · 12 PLACED</h3>
+        <div class="bets" id="bets"></div>
+      </div>
+      <div class="box">
+        <h3>THE ODDS API · FREE TIER</h3>
+        <div style="font:26px var(--f-data)">112 <span class="q" style="font-size:18px">of 500 requests this month</span></div>
+        <div class="meter"><i style="width:22.4%"></i></div>
+        <p class="q" style="margin:0;font-size:12px">About 9 requests per full scan of NFL, CFB and MLB. At 3 scans a day this lasts until Oct 21, then the $30 plan takes over.</p>
+      </div>
+      <div class="box">
+        <h3>HOUSE RULES</h3>
+        <p style="margin:0 0 6px;font-size:12px">1 unit = $10. Max 3u on one pick, 12u across a day. Nobody bets without a Bovada price that beats the sharp consensus.</p>
+        <p style="margin:0;font-size:12px" class="q">You make the final call. Taking a pick here copies a bet slip; you place it on Bovada yourself, then mark it placed.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="foot">
+  <div class="ticker" aria-hidden="true"><span>STORMY: gusts 18–22 mph forecast at Highmark for Browns @ Bills · RHEA: Broncos CB listed questionable, did not practice Mon · MATEO: Cubs name their Game 1 starter · CONNIE: 82% of tickets on KC, you know what that means · CARL: 2 correlated picks on the Bengals game · BEV: NBA tips off Oct 20, still stretching · Paper bets, real odds, no real money until you say so ·</span></div>
+  <nav aria-label="Views">
+    <button class="on" data-v="office"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 1h10v10H1zM2 2v8h8V2zM3 3h2v2H3zm4 0h2v2H7zM3 7h6v1H3z"/></svg>OFFICE</button>
+    <button data-v="slate"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 1h4v4H1zm6 0h4v4H7zM1 7h4v4H1zm6 0h4v4H7z"/></svg><span>SLATE<span class="badge" id="navBadge">9</span></span></button>
+    <button data-v="tipsters"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M4 1h4v4H4zM2 6h8v5H2z"/></svg>TIPSTERS</button>
+    <button data-v="ledger"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 10h10v1H1zM2 6h2v4H2zm3-3h2v7H5zm3 2h2v5H8z"/></svg>LEDGER</button>
+  </nav>
+</div>
+
+<script>
+/* ---------- data (all sample) ---------- */
+const DESKS=[
+  {k:'nfl',label:'NFL DESK',x0:10,y:3,sp:2},
+  {k:'cfb',label:'COLLEGE DESK',x0:10,y:8,sp:2},
+  {k:'mlb',label:'MLB DESK',x0:10,y:13,sp:2},
+  {k:'hs',label:'NBA + SOCCER',x0:12,y:18,sp:2},
+  {k:'lab',label:'THE LAB',x0:2,y:19,sp:2},
+];
+// [id,name,desk,role,method,shirt,hair,skin,w,l,p,units,clv,state,quote,original]
+const RAW=[
+ ['rhea','Rhea','nfl','Injury detective','Checks who is actually playing before talking odds. Reacts to late scratches.','#6fd3a7','#5f4037','#dba879',11,9,0,0.8,1.8,'work','A convincing story still needs a starting left tackle.',1],
+ ['quinn','Quinn','nfl','The quant','Bets only when Bovada is 2%+ off the sharp no-vig line. Nothing else.','#e8e8e8','#1d1d22','#c58f6a',14,10,1,3.1,2.4,'work','The spread is the argument.',0],
+ ['stormy','Stormy','nfl','Weather watcher','Outdoor totals when wind tops 15 mph. Otherwise passes.','#7aa7ff','#d8d8d8','#e6b893',6,4,0,1.6,1.1,'work','Check the flags on the goalposts.',0],
+ ['connie','Connie','nfl','Contrarian','Takes the other side whenever 75%+ of tickets land on one team.','#ff9aa8','#2b1b16','#8d5a3b',9,12,0,-3.4,-0.4,'work','If everyone agrees, somebody is wrong.',0],
+ ['ray','Ray','nfl','Road warrior','Short weeks, long flights, body clocks. Tired teams fade.','#f0a35e','#3b2a20','#e0b089',8,7,0,0.4,0.6,'idle','Denver to Miami on a Thursday? Pass the dog.',0],
+ ['june','June','cfb','Matchup scout','Looks past the logo and asks who a team has actually beaten.','#c69aef','#bf7745','#ecc19a',10,7,0,2.2,1.3,'work','Undefeated against who, exactly?',1],
+ ['chaos','Chaos Kid','cfb','G5 underdog hunter','Group of Five road dogs in conference play.','#ffd35c','#8a2b2b','#f1c7a2',10,8,0,2.7,0.9,'work','Saturdays are for the weird ones.',0],
+ ['theo','Theo','cfb','Tempo totals','Projects totals from plays per minute times efficiency.','#62d0e8','#4a3526','#c99772',12,9,0,2.0,1.4,'work','Count the snaps and the points follow.',0],
+ ['pete','Portal Pete','cfb','Roster churn','Early-season edges from transfer portal and returning production.','#9bd46a','#c9a45c','#dcaa84',7,6,0,0.3,0.2,'idle','Half this roster was somewhere else in May.',0],
+ ['mateo','Mateo','mlb','Pitching analyst','Starters first. Patient with numbers, impatient with guessed lineups.','#75bcea','#29272b','#bf8c66',28,22,0,5.8,2.1,'work','Show me the lineup card and I will show you a price.',1],
+ ['bill','Bullpen Bill','mlb','Bullpen workload','Fades teams whose relievers threw the most innings in the last 3 days.','#d0d7ff','#6a6a6a','#e6b58f',31,26,0,4.2,1.0,'work','Nobody is walking through that door in the 8th.',0],
+ ['blue','Blue','mlb','Umpire tendencies','Home plate umpire strike zone size into run totals.','#3b4f8f','#101010','#a8744f',22,24,0,-2.9,-0.3,'idle','Wide zone, early nights.',0],
+ ['pat','Park Pat','mlb','Park + weather','Wind at Wrigley, air at Coors, roof status everywhere.','#f59c7a','#e3c080','#f0caa6',18,17,0,0.1,0.4,'work','Flags blowing out to left. Bump the over.',0],
+ ['bev','Bev','hs','Back-to-backs','NBA rest spots: second night, fourth game in six days.','#ff7ad1','#231212','#7d4d33',0,0,0,0,0,'idle','NBA tips off Oct 20. I am stretching.',0],
+ ['dmitri','Dmitri','hs','Draw specialist','Soccer draws in tight, low-total matches.','#b7f06a','#7b5a3a','#e8c09c',6,9,0,1.9,0.7,'work','Nil-nil is a beautiful result.',0],
+ ['greta','Greta','hs','xG regression','Fades teams whose results outrun their expected goals.','#8fe3d0','#f0dc8c','#f3d2b4',11,10,0,0.6,0.8,'work','Luck runs out around matchweek eight.',0],
+ ['lydon','Lydon','lab','Two-leg enthusiast','One simple two-leg parlay a day. Different games, clear case for each leg.','#eab86f','#6b4938','#e0af83',7,11,0,1.4,0.1,'work','Two legs. Never ten.',1],
+ ['goblin','Props Goblin','lab','Player props','Player props against his own projections.','#6aa84f','#2a3a1a','#b6d68a',19,21,0,-1.8,0.3,'work','Receptions are the purest market.',0],
+ ['ursula','Ursula','lab','Plus money only','Never lays a price. Underdogs or nothing.','#e05252','#f2f2f2','#d9a07c',13,19,0,1.2,-0.2,'work','Favorites are for people who like losing slowly.',0],
+ ['coin','Coin Flip','lab','The benchmark','Picks at random. Everyone should beat him.','#bfbfbf','#bfbfbf','#e0e0e0',16,17,0,-2.0,0.0,'idle','Heads.',0],
+];
+const AGENTS=RAW.map((r,i)=>({i,id:r[0],name:r[1],desk:r[2],role:r[3],meth:r[4],shirt:r[5],hair:r[6],skin:r[7],w:r[8],l:r[9],p:r[10],u:r[11],clv:r[12],state:r[13],quote:r[14],orig:r[15]}));
+const STAFF={
+  commish:{name:'The Commish',role:'CEO',shirt:'#f0c281',hair:'#dcdcdc',skin:'#d9a57c',meth:'Reads every desk, removes duplicates and conflicts, writes your morning memo.',quote:'Nine picks, one memo, zero excuses.'},
+  mara:{name:'Mara',role:'Risk board chair',shirt:'#c9d3a7',hair:'#6e6f80',skin:'#d19a77',meth:'Blunt but fair. Checks sources, price freshness and contradictions.',quote:'A convincing story still needs a source and a current price.'},
+  barb:{name:'Bankroll Barb',role:'Risk board',shirt:'#9ad0a0',hair:'#3a2a20',skin:'#b98262',meth:'Enforces unit limits, cuts stakes for cold tipsters.',quote:'Nobody gets a 3-unit bet on a feeling.'},
+  carl:{name:'Correlation Carl',role:'Risk board',shirt:'#a0b8e8',hair:'#8c6a3c',skin:'#efc6a3',meth:'Flags picks that win or lose together.',quote:'Those two bets are one bet wearing two hats.'},
+};
+const PICKS=[
+ {id:'p1',a:'quinn',lg:'NFL · WEEK 4',game:'Bengals @ Broncos · Sun 3:05 PM',mkt:'Bengals +3.5',bov:-110,fair:-118,st:2,v:'cleared',bn:'Mara: price is fresh (pulled 6:58 AM), 7 books agree.',why:'Bovada hangs +3.5 at −110. The sharp no-vig price on +3.5 is −118. That is the whole argument.'},
+ {id:'p2',a:'mateo',lg:'MLB · WILD CARD G1',game:'Padres @ Cubs · Tue 6:08 PM',mkt:'Padres ML',bov:118,fair:110,st:1.5,v:'cleared',bn:'Barb: 1.5u is within Mateo\'s limit.',why:'Cubs starter has a 4.61 xFIP over his last six starts and the market still prices him like April. Both lineups are posted.'},
+ {id:'p3',a:'stormy',lg:'NFL · WEEK 4',game:'Browns @ Bills · Sun 12:00 PM',mkt:'Under 41.5',bov:-105,fair:-112,st:1,v:'cleared',bn:'Mara: NWS forecast issued 5:40 AM, stadium coordinates verified.',why:'Gusts of 18–22 mph off the lake at kickoff. Wind like this takes about 1.5 points off a total; the line has only moved half a point.'},
+ {id:'p4',a:'theo',lg:'CFB · WEEK 6',game:'LSU @ Ole Miss · Sat 6:30 PM',mkt:'Over 58.5',bov:-110,fair:-116,st:1,v:'cleared',bn:'Barb: fine at 1u.',why:'Both offenses rank top 15 in plays per minute. I project 146 snaps and 61.5 points.'},
+ {id:'p5',a:'bill',lg:'MLB · WILD CARD G1',game:'Red Sox @ Yankees · Tue 7:08 PM',mkt:'Yankees ML',bov:-125,fair:-135,st:1,v:'cleared',bn:'Carl: no overlap with other picks.',why:'Boston\'s bullpen threw 14.1 innings over the last three days. Their top two relievers are likely down tonight.'},
+ {id:'p6',a:'rhea',lg:'NFL · WEEK 4',game:'Cowboys @ Texans · Sun 12:00 PM',mkt:'Cowboys +2.5',bov:-108,fair:-114,st:1.5,v:'cleared',bn:'Mara: injury report confirmed from two sources.',why:'Houston\'s starting left tackle and top corner both missed Monday\'s practice. The line has not moved yet.'},
+ {id:'p7',a:'chaos',lg:'CFB · WEEK 6',game:'UTSA @ North Texas · Sat 2:30 PM',mkt:'UTSA +7.5',bov:-110,fair:-114,st:1,v:'flagged',bn:'Mara: opened +9, now +7.5. You are buying the worse number.',why:'UTSA is 4–1 against the spread as a road dog under this staff. Conference game. The vibes are right.'},
+ {id:'p8',a:'goblin',lg:'NFL · WEEK 4',game:'Bengals @ Broncos · Sun 3:05 PM',mkt:'Ja\'Marr Chase o6.5 rec',bov:100,fair:-108,st:1,v:'flagged',bn:'Carl: correlated with Quinn\'s Bengals +3.5. Take one, or halve both.',why:'My projection is 7.4 catches on 10.5 targets. Denver plays soft zone and gives up volume underneath.'},
+ {id:'p9',a:'connie',lg:'NFL · WEEK 4',game:'Titans @ Chiefs · Sun 3:25 PM',mkt:'Titans +7',bov:-110,fair:-104,st:0,v:'vetoed',bn:'Barb: vetoed. Negative value at this price (fair −104 is worse than −110), and Connie is −3.4u over 21 bets.',why:'82% of tickets are on the Chiefs. That is all I need.'},
+];
+const byId=Object.fromEntries(AGENTS.map(a=>[a.id,a]));
+const dec=o=>o>0?1+o/100:1+100/(-o);
+const prob=o=>o>0?100/(o+100):(-o)/(-o+100);
+const fmtO=o=>o>0?'+'+o:'−'+(-o);
+const edge=p=>prob(p.fair)*dec(p.bov)-1;
+const UNIT=10;
+let decisions={};
+try{decisions=JSON.parse(localStorage.getItem('lab-decisions')||'{}')}catch(e){}
+const saveDec=()=>{try{localStorage.setItem('lab-decisions',JSON.stringify(decisions))}catch(e){}};
+AGENTS.forEach(a=>{a.pick=PICKS.find(p=>p.a===a.id)});
+
+/* ---------- sprite (13x16 pixel figure) ---------- */
+function sprite(cv,c){
+  const g=cv.getContext('2d');g.clearRect(0,0,13,16);
+  const r=(x,y,w,h,f)=>{g.fillStyle=f;g.fillRect(x,y,w,h)};
+  r(3,1,7,2,c.hair);r(3,3,7,5,c.skin);r(3,3,1,3,c.hair);r(5,5,1,1,'#10181b');r(8,5,1,1,'#10181b');
+  r(2,8,9,5,c.shirt);r(8,8,3,5,shade(c.shirt,-.22));r(1,9,1,3,c.skin);r(11,9,1,3,c.skin);
+  r(3,13,3,3,'#2d3b4a');r(7,13,3,3,'#2d3b4a');
+}
+function shade(hex,amt){const n=parseInt(hex.slice(1),16);let r=n>>16,g=n>>8&255,b=n&255;const f=v=>Math.max(0,Math.min(255,Math.round(v+(amt<0?v*amt:(255-v)*amt))));return `rgb(${f(r)},${f(g)},${f(b)})`}
+
+/* ---------- office scene ---------- */
+const cv=document.getElementById('office'),ctx=cv.getContext('2d');
+const T=16,HH=8,W=24,D=26,WALL=96;
+const iso=(x,y,z=0)=>[(x-y)*T,(x+y)*HH-z];
+const SCN={x0:-430,x1:400,y0:-104,y1:410};
+let cam={x:40,y:150,z:1},cw=0,ch=0,dpr=1,selected=null,hover=null;
+function poly(pts,fill,stroke){ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke()}}
+function box(x,y,z,w,d,h,c){
+  poly([iso(x,y+d,z),iso(x+w,y+d,z),iso(x+w,y+d,z+h),iso(x,y+d,z+h)],c.l);
+  poly([iso(x+w,y,z),iso(x+w,y+d,z),iso(x+w,y+d,z+h),iso(x+w,y,z+h)],c.r);
+  poly([iso(x,y,z+h),iso(x+w,y,z+h),iso(x+w,y+d,z+h),iso(x,y+d,z+h)],c.t,c.e);
+}
+const DESKC={t:'#cfe9dc',l:'#7fa596',r:'#9cc2b2',e:'#e9fff4'};
+const CHAIR={t:'#2e3f48',l:'#1a252c',r:'#232f37'};
+function pill(x,y,text,bg,fg,font,pad=4){
+  ctx.font=font;const w=Math.ceil(ctx.measureText(text).width)+pad*2,h=parseInt(font)+4;
+  const bx=Math.round(x-w/2),by=Math.round(y-h);
+  ctx.fillStyle=bg;ctx.fillRect(bx,by,w,h);ctx.fillStyle='#0008';ctx.fillRect(bx,by+h,w,2);
+  ctx.fillStyle=fg;ctx.textBaseline='top';ctx.fillText(text,bx+pad,by+2);
+  return {bx,by,w,h};
+}
+function drawPerson(a,x,y,t){
+  box(x-0.22,y-0.3,0,0.44,0.36,14,CHAIR);
+  const [px,py]=iso(x,y,0);
+  const bob=a.state==='work'&&!REDUCED?(Math.sin(t*5+a.i*1.7)>0.55?1:0):0;
+  const bx=Math.round(px),by=Math.round(py)-5+bob;
+  const r=(dx,dy,w,h,f)=>{ctx.fillStyle=f;ctx.fillRect(bx+dx,by+dy,w,h)};
+  r(-5,-12,10,12,a.shirt);r(2,-12,3,12,shade(a.shirt,-.25));
+  r(-4,-21,8,9,a.skin);r(-4,-22,8,3,a.hair);r(-4,-19,2,3,a.hair);
+  r(-1,-17,1,1,'#0e1519');r(2,-17,1,1,'#0e1519');
+  a.sx=bx;a.sy=by-12;
+  return by;
+}
+function laptop(x,y){
+  poly([iso(x-0.32,y+0.2,10),iso(x+0.32,y+0.2,10),iso(x+0.32,y+0.55,10),iso(x-0.32,y+0.55,10)],'#2a3438');
+  poly([iso(x-0.32,y+0.2,10),iso(x+0.32,y+0.2,10),iso(x+0.32,y+0.2,19),iso(x-0.32,y+0.2,19)],'#46555c','#6e8088');
+  const [lx,ly]=iso(x,y+0.2,15);ctx.fillStyle='#c7f78c';ctx.fillRect(Math.round(lx)-1,Math.round(ly)-1,2,2);
+}
+function bubble(a,topY,t){
+  const hasBets=a.w+a.l>0;
+  const txt=hasBets?(a.u>0?'+':a.u<0?'−':'')+Math.abs(a.u).toFixed(1)+'u':'NBA 10/20';
+  const bg=!hasBets?'#33494a':a.u>0.05?'#2b7a4f':a.u<-0.05?'#9a3b34':'#33494a';
+  const p=pill(a.sx,topY-8,txt,bg,'#f2fff6','12px VT323');
+  ctx.fillStyle=bg;ctx.fillRect(a.sx-2,topY-8+2,4,3);
+  if(a.pick&&!REDUCED){ // "has a pick today" marker
+    ctx.fillStyle='#f0c281';ctx.fillRect(p.bx+p.w+2,p.by+3,4,6);ctx.fillRect(p.bx+p.w+2,p.by+10,4,2);
+  }
+  if(a.state==='work'&&!a.pick&&!REDUCED){const k=Math.floor(t*3+a.i)%4;ctx.fillStyle='#c7f78c';for(let d=0;d<k;d++)ctx.fillRect(p.bx+p.w+3+d*3,p.by+8,2,2)}
+  if(selected===a||hover===a){pill(a.sx,p.by-3,a.name.toUpperCase(),'#c7f78c','#10230f','8px Silkscreen',3)}
+}
+function label(x,y,z,t1,t2){
+  const [lx,ly]=iso(x,y,z);
+  ctx.strokeStyle='#c7f78c88';ctx.beginPath();ctx.moveTo(Math.round(lx)+.5,ly);ctx.lineTo(Math.round(lx)+.5,ly+z-14);ctx.stroke();
+  const p=pill(lx,ly,t1,'#0b1f21','#e4ede5','10px Silkscreen',6);
+  ctx.strokeStyle='#5ed3b4';ctx.strokeRect(p.bx+.5,p.by+.5,p.w-1,p.h-1);
+  if(t2){ctx.font='13px VT323';ctx.fillStyle='#94aba1';ctx.textAlign='center';ctx.fillText(t2,lx,ly+1);ctx.textAlign='left'}
+}
+function floor(){
+  for(let x=0;x<W;x++)for(let y=0;y<D;y++){
+    poly([iso(x,y),iso(x+1,y),iso(x+1,y+1),iso(x,y+1)],(Math.floor(x/2)%2)?'#12382a':'#154030');
+  }
+  ctx.strokeStyle='#dfffe91c';ctx.lineWidth=1;
+  for(let x=0;x<=W;x+=4){const a=iso(x,0),b=iso(x,D);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke()}
+  // painted end zone + yard numbers on the floor plane
+  ctx.save();const o=iso(0,0);ctx.transform(1,0.5,-1,0.5,o[0],o[1]);
+  ctx.fillStyle='#0e2e22';ctx.fillRect(0,23*T,W*T,3*T);
+  ctx.font='700 26px Silkscreen';ctx.fillStyle='#c7f78c30';ctx.textBaseline='middle';ctx.fillText('AGENT LAB',5.2*T,24.5*T);
+  ctx.font='16px Silkscreen';ctx.fillStyle='#dfffe930';[['10',4],['20',8],['30',12],['40',16],['50',20]].forEach(([n,x])=>{ctx.fillText(n,x*T-9,21.9*T)});
+  ctx.restore();
+}
+function walls(t){
+  poly([iso(0,0,0),iso(W,0,0),iso(W,0,WALL),iso(0,0,WALL)],'#0f2a2b');
+  poly([iso(0,0,0),iso(0,D,0),iso(0,D,WALL),iso(0,0,WALL)],'#0b2223');
+  poly([iso(0,0,WALL),iso(W,0,WALL),iso(W,0,WALL+4),iso(0,0,WALL+4)],'#2c4a48');
+  poly([iso(0,0,WALL),iso(0,D,WALL),iso(0,D,WALL+4),iso(0,0,WALL+4)],'#223c3b');
+  // big wall screen (back wall, y=0 plane)
+  ctx.save();let o=iso(11,0,86);ctx.transform(1,0.5,0,1,o[0],o[1]);
+  const SW=10*T,SH=58;
+  ctx.fillStyle='#051011';ctx.fillRect(-3,-3,SW+6,SH+6);ctx.strokeStyle='#5ed3b4';ctx.lineWidth=2;ctx.strokeRect(-3,-3,SW+6,SH+6);
+  ctx.fillStyle='#0a1d1e';ctx.fillRect(0,0,SW,SH);
+  ctx.textBaseline='top';ctx.font='8px Silkscreen';ctx.fillStyle='#94aba1';ctx.fillText('FIRM BANKROLL · PAPER',6,4);
+  ctx.font='26px VT323';ctx.fillStyle='#e4ede5';ctx.fillText('$2,142.60',6,13);
+  ctx.font='13px VT323';ctx.fillStyle='#7be3a4';ctx.fillText('+7.1%  CLV +0.6%',6,34);
+  ctx.fillStyle='#f0c281';ctx.fillText('9 PICKS TODAY · 6 CLEARED',6,44);
+  // sparkline
+  ctx.strokeStyle='#c7f78c';ctx.lineWidth=1.5;ctx.beginPath();
+  EQ.forEach((v,i)=>{const X=100+i*2.2,Y=48-(v-1960)/200*40;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)});ctx.stroke();
+  ctx.restore();
+  // left wall: orange decisions board + sign (x=0 plane)
+  ctx.save();o=iso(0,5.5,80);ctx.transform(1,-0.5,0,1,o[0],o[1]);
+  ctx.fillStyle='#b8692c';ctx.fillRect(0,0,52,40);ctx.fillStyle='#8a4a1c';ctx.fillRect(0,36,52,4);
+  ctx.font='8px Silkscreen';ctx.fillStyle='#ffe2b8';ctx.textBaseline='top';ctx.fillText('BOARD',11,5);
+  ctx.fillStyle='#fff3dc';ctx.font='13px VT323';ctx.fillText('6 OK',6,15);ctx.fillText('2 ? 1 X',6,24);
+  ctx.restore();
+  ctx.save();o=iso(0,23,74);ctx.transform(1,-0.5,0,1,o[0],o[1]);
+  ctx.font='700 12px Silkscreen';ctx.fillStyle='#c7f78c';ctx.textBaseline='top';ctx.fillText('AGENT LAB',0,0);
+  ctx.font='12px VT323';ctx.fillStyle='#94aba1';ctx.fillText('PAPER BETS · REAL ODDS',0,16);
+  ctx.restore();
+}
+function glassRoom(x0,y0,x1,y1,h,back){
+  const glass='#9fe8d614',edge='#9fe8d655';
+  if(back){
+    poly([iso(x0,y0),iso(x1,y0),iso(x1,y1),iso(x0,y1)],'#0d2a25');
+    poly([iso(x0,y0,0),iso(x1,y0,0),iso(x1,y0,h),iso(x0,y0,h)],glass,edge);
+    poly([iso(x0,y0,0),iso(x0,y1,0),iso(x0,y1,h),iso(x0,y0,h)],glass,edge);
+  }else{
+    poly([iso(x1,y0,0),iso(x1,y1,0),iso(x1,y1,h),iso(x1,y0,h)],glass,edge);
+    poly([iso(x0,y1,0),iso(x1,y1,0),iso(x1,y1,h),iso(x0,y1,h)],glass,edge);
+  }
+}
+function plant(x,y){box(x-0.25,y-0.25,0,0.5,0.5,8,{t:'#6b4a2e',l:'#4a311d',r:'#5a3c24'});const [px,py]=iso(x,y,8);ctx.fillStyle='#3fa36a';ctx.fillRect(px-6,py-14,12,12);ctx.fillStyle='#57c985';ctx.fillRect(px-3,py-18,6,8)}
+const staffSpots=[];
+function scene(t){
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#07130f';ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.setTransform(dpr*cam.z,0,0,dpr*cam.z,dpr*(cw/2-cam.x*cam.z),dpr*(ch/2-cam.y*cam.z));
+  ctx.imageSmoothingEnabled=false;
+  floor();walls(t);
+  staffSpots.length=0;
+  // CEO office
+  glassRoom(1,1,7.5,6,34,true);
+  const ceo={...STAFF.commish,i:40,state:'work',id:'commish'};
+  drawPerson(ceo,4.2,2.7,t);box(2.8,3.1,0,3,1.1,10,{t:'#e0c89a',l:'#8a7350',r:'#a88c62',e:'#fff2d0'});laptop(4.2,3.1);
+  glassRoom(1,1,7.5,6,34,false);
+  staffSpots.push(ceo);
+  // Risk board room
+  glassRoom(1,8,7.5,13,34,true);
+  const bm=[['mara',3.2],['barb',4.5],['carl',5.8]].map(([k,x],j)=>{const s={...STAFF[k],i:50+j,state:'work',id:k};drawPerson(s,x,9.6,t);return s});
+  box(2.6,10,0,3.8,1.5,10,{t:'#bcd9cf',l:'#6f9486',r:'#8db3a4',e:'#e9fff4'});
+  glassRoom(1,8,7.5,13,34,false);
+  staffSpots.push(...bm);
+  // desks
+  const tops=[];
+  DESKS.forEach(d=>{
+    const ag=AGENTS.filter(a=>a.desk===d.k),len=ag.length*d.sp;
+    ag.forEach((a,j)=>{a.fx=d.x0+j*d.sp+1;a.fy=d.y-0.4;tops.push([a,drawPerson(a,a.fx,a.fy,t)])});
+    box(d.x0,d.y,0,len,1,10,DESKC);
+    ag.forEach(a=>laptop(a.fx,d.y));
+    if(ag.some(a=>a===selected)){const a=selected;poly([iso(a.fx-0.6,a.fy-0.5),iso(a.fx+0.6,a.fy-0.5),iso(a.fx+0.6,a.fy+0.2),iso(a.fx-0.6,a.fy+0.2)],null,'#c7f78c')}
+  });
+  plant(22.5,1.5);plant(9,1);plant(22.5,22.5);plant(1.5,16);
+  // labels + bubbles on top
+  DESKS.forEach(d=>{const n=AGENTS.filter(a=>a.desk===d.k).length;label(d.x0+n*d.sp/2,d.y-1.6,44,d.label,n+' tipsters')});
+  label(4.2,1.4,62,'CEO','The Commish');label(4.2,8.4,60,'RISK BOARD','3 members');
+  tops.forEach(([a,by])=>bubble(a,by-22,t));
+  staffSpots.forEach(s=>{if(selected===s||hover===s)pill(s.sx,s.sy-14,s.name.toUpperCase(),'#c7f78c','#10230f','8px Silkscreen',3)});
+}
+const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const EQ=(()=>{let v=2000,out=[];for(let i=0;i<26;i++){v+=Math.sin(i*1.3)*14+Math.cos(i*.7)*9+5.5;out.push(v)}out[25]=2142.6;return out})();
+function resize(){
+  const r=cv.getBoundingClientRect();cw=r.width;ch=r.height;dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.width=Math.round(cw*dpr);cv.height=Math.round(ch*dpr);
+}
+function fit(){const z=Math.min(cw/(SCN.x1-SCN.x0),ch/(SCN.y1-SCN.y0));cam.z=Math.max(z,0.55);cam.x=(SCN.x0+SCN.x1)/2;cam.y=(SCN.y0+SCN.y1)/2;if(cw<600){cam.z=Math.max(cam.z,0.95);cam.x=120;cam.y=170}}
+let last=0;
+function loop(ts){if(!document.getElementById('v-office').hidden&&ts-last>90){last=ts;scene(ts/1000)}requestAnimationFrame(loop)}
+function toScene(e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left-cw/2)/cam.z+cam.x,(e.clientY-r.top-ch/2)/cam.z+cam.y]}
+function hit(e){const [x,y]=toScene(e);let best=null,bd=14;[...AGENTS,...staffSpots].forEach(a=>{if(a.sx==null)return;const d=Math.hypot(a.sx-x,a.sy-y);if(d<bd){bd=d;best=a}});return best}
+let drag=null;
+cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y,moved:false};cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{
+  if(drag){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>5){drag.moved=true;cv.classList.add('drag')}if(drag.moved){cam.x=drag.cx-dx/cam.z;cam.y=drag.cy-dy/cam.z;last=0}}
+  else{const h=hit(e);if(h!==hover){hover=h;last=0;cv.style.cursor=h?'pointer':''}}
+});
+cv.addEventListener('pointerup',e=>{cv.classList.remove('drag');if(drag&&!drag.moved){const h=hit(e);select(h)}drag=null});
+function select(a){
+  selected=a;last=0;const sh=document.getElementById('sheet');
+  if(!a){sh.hidden=true;return}
+  sh.hidden=false;sprite(document.getElementById('sheetAv'),a);
+  document.getElementById('sheetNm').textContent=a.name.toUpperCase();
+  const desk=a.desk?DESKS.find(d=>d.k===a.desk).label:'FRONT OFFICE';
+  document.getElementById('sheetRole').textContent=a.role+' · '+desk+(a.orig?' · original five':'');
+  document.getElementById('sheetMeth').textContent=a.meth;
+  const nums=document.getElementById('sheetNums');
+  if(a.desk){const n=a.w+a.l;nums.innerHTML=n?`<span>${a.w}–${a.l}${a.p?'–'+a.p:''}</span><span class="${a.u>=0?'up':'down'}">${a.u>=0?'+':'−'}${Math.abs(a.u).toFixed(1)}u</span><span class="${a.clv>=0?'up':'down'}">CLV ${a.clv>=0?'+':'−'}${Math.abs(a.clv).toFixed(1)}%</span>`:'<span class="q">No bets yet this season</span>';nums.hidden=false}
+  else nums.hidden=true;
+  const pk=document.getElementById('sheetPick');
+  if(a.pick){pk.hidden=false;pk.innerHTML=`<b>Today:</b> ${a.pick.mkt} ${fmtO(a.pick.bov)} · ${a.pick.st}u · <span class="pill ${a.pick.v}">${a.pick.v.toUpperCase()}</span>`}
+  else if(a.desk){pk.hidden=false;pk.textContent=a.state==='work'?'Today: researching, nothing that clears the price bar yet.':'Today: sitting out.'}
+  else pk.hidden=true;
+  document.getElementById('sheetQuote').textContent='"'+a.quote+'"';
+}
+document.getElementById('sheetX').onclick=()=>select(null);
+document.getElementById('zIn').onclick=()=>{cam.z=Math.min(cam.z*1.25,3);last=0};
+document.getElementById('zOut').onclick=()=>{cam.z=Math.max(cam.z/1.25,0.4);last=0};
+document.getElementById('zFit').onclick=()=>{fit();last=0};
+document.getElementById('toSlate').onclick=()=>show('slate');
+addEventListener('resize',()=>{resize();last=0});
+
+/* ---------- slate ---------- */
+let filt='all';
+function renderSlate(){
+  const cards=document.getElementById('cards');cards.innerHTML='';
+  PICKS.filter(p=>filt==='all'||(filt==='mine'?decisions[p.id]==='taken'||decisions[p.id]==='placed':p.v===filt)).forEach(p=>{
+    const a=byId[p.a],d=decisions[p.id],e=edge(p);
+    const el=document.createElement('article');el.className='card '+(p.v==='vetoed'?'vetoed ':'')+(d||'');
+    const statusPill=d?`<span class="pill ${d}">${d==='taken'?'TAKEN':d==='placed'?'PLACED':'PASSED'}</span>`:`<span class="pill ${p.v}">${p.v.toUpperCase()}</span>`;
+    el.innerHTML=`<div class="chead"><canvas width="13" height="16"></canvas><div class="who"><b>${a.name.toUpperCase()}</b><span>${a.role} · ${p.lg}</span></div>${statusPill}</div>
+      <div><div class="mkt">${p.mkt}</div><div class="game">${p.game}</div></div>
+      <div class="odds"><div><b>BOVADA</b><span>${fmtO(p.bov)}</span></div><div><b>SHARP FAIR</b><span>${fmtO(p.fair)}</span></div><div><b>EDGE</b><span class="${e>0?'up':'down'}">${e>0?'+':'−'}${Math.abs(e*100).toFixed(1)}%</span></div><div><b>STAKE</b><span>${p.st}u</span></div></div>
+      <p class="why">"${p.why}"</p>
+      <div class="board ${p.v}">${p.bn}</div>
+      <div class="acts"></div>`;
+    sprite(el.querySelector('canvas'),a);
+    const acts=el.querySelector('.acts');
+    const btn=(t,cls,fn)=>{const b=document.createElement('button');b.textContent=t;if(cls)b.className=cls;b.onclick=fn;acts.appendChild(b)};
+    if(p.v==='vetoed'&&!d){btn('OVERRIDE VETO','',()=>setD(p,'taken'))}
+    else if(!d){btn('TAKE IT','pri',()=>setD(p,'taken'));btn('PASS','',()=>setD(p,'passed'))}
+    else if(d==='taken'){btn('COPY BET SLIP','',()=>copySlip(p));btn('MARK PLACED ON BOVADA','teal',()=>setD(p,'placed'));btn('UNDO','',()=>setD(p,null))}
+    else btn('UNDO','',()=>setD(p,null));
+    cards.appendChild(el);
+  });
+  const reviewed=PICKS.filter(p=>decisions[p.id]).length;
+  document.getElementById('navBadge').textContent=PICKS.length-reviewed||'✓';
+  const ex=PICKS.filter(p=>p.v==='cleared').reduce((s,p)=>s+p.st,0);
+  document.getElementById('expo').textContent=ex.toFixed(1)+'u ($'+(ex*UNIT).toFixed(0)+')';
+  updateBar();
+}
+function setD(p,v){if(v)decisions[p.id]=v;else delete decisions[p.id];saveDec();renderSlate();if(v==='placed')toast('Marked placed. It will grade itself after the game.')}
+function copySlip(p){const s=`${p.mkt} ${fmtO(p.bov)} · ${p.game} · $${(p.st*UNIT).toFixed(2)} (${p.st}u)`;
+  const done=()=>toast('Bet slip copied');
+  try{navigator.clipboard.writeText(s).then(done,()=>toast(s))}catch(e){toast(s)}}
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200)}
+document.getElementById('filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;filt=b.dataset.f;document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));renderSlate()});
+
+/* ---------- tipsters ---------- */
+let sortKey='u';
+function statusOf(a){
+  if(a.id==='coin')return['BENCHMARK','#94aba1'];
+  if(a.w+a.l===0)return['PRESEASON','#94aba1'];
+  if(a.u<=-2.5&&a.clv<0)return['ON NOTICE','#ff8e80'];
+  if(a.clv>=1.5)return['SHARP','#c7f78c'];
+  if(a.u>=2)return['HOT','#f0c281'];
+  return['STEADY','#5ed3b4'];
+}
+function formDots(a){let s='',seed=a.i*7+3;const wr=a.w/Math.max(1,a.w+a.l);for(let k=0;k<10;k++){seed=(seed*9301+49297)%233280;const won=a.w+a.l===0?null:seed/233280<wr;s+=`<i style="background:${won===null?'#2c4a48':won?'#7be3a4':'#ff8e80'}"></i>`}return s}
+function renderTable(){
+  const roi=a=>a.w+a.l?a.u/(a.w+a.l)*100:0;
+  const key={u:a=>a.u,clv:a=>a.clv,roi,rec:a=>a.w-a.l}[sortKey];
+  const tb=document.getElementById('tbody');tb.innerHTML='';
+  [...AGENTS].sort((x,y)=>key(y)-key(x)).forEach(a=>{
+    const [st,c]=statusOf(a),tr=document.createElement('tr'),n=a.w+a.l;
+    tr.innerHTML=`<td><div class="agentcell"><canvas width="13" height="16"></canvas><div><b>${a.name}</b><div class="q" style="font-size:11px">${a.role}</div></div></div></td>
+      <td class="q">${DESKS.find(d=>d.k===a.desk).label}</td>
+      <td class="n">${n?a.w+'–'+a.l+(a.p?'–'+a.p:''):'—'}</td>
+      <td class="n ${a.u>0?'up':a.u<0?'down':''}">${n?(a.u>=0?'+':'−')+Math.abs(a.u).toFixed(1):'—'}</td>
+      <td class="n ${roi(a)>0?'up':roi(a)<0?'down':''}">${n?(roi(a)>=0?'+':'−')+Math.abs(roi(a)).toFixed(1)+'%':'—'}</td>
+      <td class="n ${a.clv>0?'up':a.clv<0?'down':''}">${n?(a.clv>=0?'+':'−')+Math.abs(a.clv).toFixed(1)+'%':'—'}</td>
+      <td><div class="form">${formDots(a)}</div></td>
+      <td><span class="status" style="color:${c};border-color:${c}">${st}</span></td>`;
+    sprite(tr.querySelector('canvas'),a);tb.appendChild(tr);
+  });
+}
+document.querySelector('thead').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sortKey=b.dataset.s;document.querySelectorAll('th button').forEach(x=>x.classList.toggle('on',x===b));renderTable()});
+
+/* ---------- ledger ---------- */
+function renderLedger(){
+  const svg=document.getElementById('eq'),x=i=>34+i*(278/25),y=v=>130-(v-1960)/(2160-1960)*118;
+  let g='';[1980,2040,2100,2160].forEach(v=>{g+=`<line x1="34" x2="314" y1="${y(v)}" y2="${y(v)}" stroke="#1b3634"/><text x="0" y="${y(v)+4}" fill="#94aba1" font-family="VT323" font-size="13">$${v.toLocaleString()}</text>`});
+  const pts=EQ.map((v,i)=>x(i)+','+y(v)).join(' ');
+  g+=`<line x1="34" x2="314" y1="${y(2000)}" y2="${y(2000)}" stroke="#94aba1" stroke-dasharray="3 3"/>`;
+  g+=`<polygon points="${x(0)},130 ${pts} ${x(25)},130" fill="#c7f78c18"/><polyline points="${pts}" fill="none" stroke="#c7f78c" stroke-width="2"/>`;
+  g+=`<rect x="${x(25)-3}" y="${y(EQ[25])-3}" width="6" height="6" fill="#c7f78c"/><text x="${x(25)-4}" y="${y(EQ[25])-8}" text-anchor="end" fill="#e4ede5" font-family="VT323" font-size="15">$2,142.60</text>`;
+  g+=`<text x="34" y="146" fill="#94aba1" font-family="VT323" font-size="13">Sep 4</text><text x="314" y="146" text-anchor="end" fill="#94aba1" font-family="VT323" font-size="13">Sep 29</text>`;
+  svg.innerHTML=g;
+  const B=[['Mateo','Guardians ML −115','Sep 27',1,9.60],['Quinn','Seahawks −2.5 −110','Sep 28',2,18.18],['Stormy','Jets/Pats u38.5 −110','Sep 28',1,-10],['Bill','Mariners ML +105','Sep 26',1,10.50],['June','Indiana +4.5 −110','Sep 27',1,9.09],['Rhea','Rams +1.5 −108','Sep 28',1.5,-15]];
+  document.getElementById('bets').innerHTML=B.map(b=>`<div class="bet"><div><b>${b[1]}</b><div class="g">${b[0]} · ${b[2]} · ${b[3]}u</div></div><div class="r ${b[4]>0?'up':'down'}">${b[4]>0?'+':'−'}$${Math.abs(b[4]).toFixed(2)}</div></div>`).join('')+`<div class="bet"><div class="g">+ 6 older bets</div><div class="r up">+$38.50 total</div></div>`;
+}
+
+/* ---------- header modes ---------- */
+const MODES={
+  paper:{k:'FIRM BANKROLL · 20 TIPSTERS · PAPER',big:'$2,142.60',chg:'+7.1%',up:true,sub:'on $2,000 seeded ($100 per tipster) · season opened Sep 4',s1:'+0.6%',s2l:'RECORD',s2:'312–281–9',s3:'+$142.60'},
+  real:{k:'YOUR BOVADA RESULTS · REAL MONEY',big:'+$38.50',chg:'7–5',up:true,sub:'on $185 risked across 12 bets you placed · since Sep 14',s1:'+1.2%',s2l:'ROI',s2:'+20.8%',s3:'+$38.50'},
+};
+function setMode(m){const d=MODES[m];
+  document.getElementById('kLabel').textContent=d.k;document.getElementById('bigNum').textContent=d.big;
+  const c=document.getElementById('bigChg');c.textContent=d.chg;
+  document.getElementById('subLine').textContent=d.sub;document.getElementById('s1').textContent=d.s1;
+  document.getElementById('s2l').textContent=d.s2l;document.getElementById('s2').textContent=d.s2;document.getElementById('s3').textContent=d.s3;
+  ['modePaper','modeReal'].forEach(id=>{const on=(id==='modePaper')===(m==='paper');const b=document.getElementById(id);b.classList.toggle('on',on);b.setAttribute('aria-selected',on)});
+}
+document.getElementById('modePaper').onclick=()=>setMode('paper');
+document.getElementById('modeReal').onclick=()=>setMode('real');
+function updateBar(){const r=PICKS.filter(p=>decisions[p.id]).length;document.getElementById('barFill').style.width=(r/PICKS.length*100)+'%';document.getElementById('barLab').textContent=`${r} of ${PICKS.length} slate picks reviewed · ${PICKS.filter(p=>decisions[p.id]==='placed').length} placed on Bovada`}
+let ago=4;setInterval(()=>{ago=(ago+1)%60;document.getElementById('ago').textContent=ago},1000);
+
+/* ---------- nav ---------- */
+function show(v){
+  ['office','slate','tipsters','ledger'].forEach(k=>document.getElementById('v-'+k).hidden=k!==v);
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  if(v==='office'){resize();last=0}
+  try{localStorage.setItem('lab-view',v)}catch(e){}
+}
+document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)show(b.dataset.v)});
+
+/* ---------- boot ---------- */
+sprite(document.getElementById('ceoAv'),STAFF.commish);
+renderSlate();renderTable();renderLedger();setMode('paper');
+resize();fit();
+(document.fonts&&document.fonts.load?Promise.all([document.fonts.load('10px Silkscreen'),document.fonts.load('12px VT323')]).catch(()=>{}):Promise.resolve()).then(()=>{last=0});
+requestAnimationFrame(loop);
+let startV='office';try{startV=localStorage.getItem('lab-view')||'office'}catch(e){}
+show(['office','slate','tipsters','ledger'].includes(startV)?startV:'office');
+</script>
