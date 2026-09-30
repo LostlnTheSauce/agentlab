@@ -15,7 +15,7 @@ window.sprite=sprite;
 
 const T=16,HH=8,W=24,D=26,WALL=96;
 const iso=(x,y,z=0)=>[(x-y)*T,(x+y)*HH-z];
-const SCN={x0:-430,x1:400,y0:-150,y1:410};
+const SCN={x0:-690,x1:400,y0:-110,y1:410};
 const DESK_POS={nfl:{x0:10,y:3},cfb:{x0:10,y:8},mlb:{x0:10,y:13},hs:{x0:12,y:18},lab:{x0:2,y:19}};
 const DESKC={t:'#cfe9dc',l:'#7fa596',r:'#9cc2b2',e:'#e9fff4'};
 const CHAIR={t:'#2e3f48',l:'#1a252c',r:'#232f37'};
@@ -87,9 +87,9 @@ function floor(){
 }
 function walls(){
   poly([iso(0,0,0),iso(W,0,0),iso(W,0,WALL),iso(0,0,WALL)],'#0f2a2b');
-  [[0,JY0],[JY1,D]].forEach(([a,b])=>poly([iso(0,a,0),iso(0,b,0),iso(0,b,WALL),iso(0,a,WALL)],'#0b2223'));
+  poly([iso(0,0,0),iso(0,HY0,0),iso(0,HY0,WALL),iso(0,0,WALL)],'#0b2223');
   poly([iso(0,0,WALL),iso(W,0,WALL),iso(W,0,WALL+4),iso(0,0,WALL+4)],'#2c4a48');
-  [[0,JY0],[JY1,D]].forEach(([a,b])=>poly([iso(0,a,WALL),iso(0,b,WALL),iso(0,b,WALL+4),iso(0,a,WALL+4)],'#223c3b'));
+  poly([iso(0,0,WALL),iso(0,HY0,WALL),iso(0,HY0,WALL+4),iso(0,0,WALL+4)],'#223c3b');
   const s=data.screen||{};
   ctx.save();let o=iso(11,0,86);ctx.transform(1,0.5,0,1,o[0],o[1]);
   const SW=10*T,SH=58;
@@ -103,13 +103,13 @@ function walls(){
   if(ser.length>1){const mn=Math.min(0,...ser),mx=Math.max(0.01,...ser);ctx.strokeStyle='#c7f78c';ctx.lineWidth=1.5;ctx.beginPath();
     ser.forEach((v,i)=>{const X=100+i*(54/(ser.length-1)),Y=50-(v-mn)/(mx-mn)*40;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)});ctx.stroke()}
   ctx.restore();
-  ctx.save();o=iso(0,17.2,80);ctx.transform(1,-0.5,0,1,o[0],o[1]);
+  ctx.save();o=iso(0,6.5,80);ctx.transform(1,-0.5,0,1,o[0],o[1]);
   ctx.fillStyle='#b8692c';ctx.fillRect(0,0,52,40);ctx.fillStyle='#8a4a1c';ctx.fillRect(0,36,52,4);
   ctx.font='8px Silkscreen';ctx.fillStyle='#ffe2b8';ctx.textBaseline='top';ctx.fillText('BOARD',11,5);
   const bd=s.board||{cleared:0,flagged:0,vetoed:0};
   ctx.fillStyle='#fff3dc';ctx.font='13px VT323';ctx.fillText(`${bd.cleared} OK`,6,15);ctx.fillText(`${bd.flagged} ? ${bd.vetoed} X`,6,24);
   ctx.restore();
-  ctx.save();o=iso(0,25.4,74);ctx.transform(1,-0.5,0,1,o[0],o[1]);
+  ctx.save();o=iso(0,20.8,74);ctx.transform(1,-0.5,0,1,o[0],o[1]);
   ctx.font='700 12px Silkscreen';ctx.fillStyle='#c7f78c';ctx.textBaseline='top';ctx.fillText('AGENT LAB',0,0);
   ctx.font='12px VT323';ctx.fillStyle='#94aba1';ctx.fillText('PAPER BETS · REAL ODDS',0,16);
   ctx.restore();
@@ -130,9 +130,10 @@ function deskSign(x,y,len,text,n){
   ctx.fillStyle='#c7f78c';ctx.textBaseline='top';ctx.fillText(label,9,1.5,w-7);
   ctx.restore();
 }
-/* ---- tipster jail: a concrete annex off the left wall; fired tipsters wander in stripes */
-const JX0=-6.5,JX1=0,JY0=1.2,JY1=7.8,JH=62;
-let jailTops=[];
+/* ---- tipster jail: its own building at the end of a hallway off the left wall, with a guard outside */
+const HX0=-6,HX1=0,HY0=21.6,HY1=23.4;          // hallway
+const JX0=-13.5,JX1=-6,JY0=17.4,JY1=27,JH=52;  // jail building
+let jailTops=[],guardSpot=null;
 function bars(x0,y0,x1,y1,h){
   const n=Math.round(Math.hypot(x1-x0,y1-y0)*4);
   ctx.strokeStyle='#8fa7a3';ctx.lineWidth=1;
@@ -152,30 +153,57 @@ function convict(p,x,y,t){
   p.sx=bx;p.sy=by-16;
   return by-30;
 }
+function hallway(){
+  for(let x=HX0;x<HX1;x++)poly([iso(x,HY0),iso(x+1,HY0),iso(x+1,HY1),iso(x,HY1)],x%2?'#26302f':'#2b3634');
+  poly([iso(HX0,HY0,0),iso(HX1,HY0,0),iso(HX1,HY0,30),iso(HX0,HY0,30)],'#18211f');
+  poly([iso(HX0,HY0,30),iso(HX1,HY0,30),iso(HX1,HY0,33),iso(HX0,HY0,33)],'#303c3b');
+  for(let x=HX0+0.5;x<HX1;x+=1.5){const [lx,ly]=iso(x,HY0+0.05,26);ctx.fillStyle='#f0c281';ctx.fillRect(Math.round(lx)-2,Math.round(ly),4,2)}
+}
+function hallwayFront(){
+  poly([iso(HX0,HY1,0),iso(HX1,HY1,0),iso(HX1,HY1,30),iso(HX0,HY1,30)],'#9fe8d614','#9fe8d655');
+  ctx.save();const o=iso(HX0+1.4,HY1,20);ctx.transform(1,0.5,0,1,o[0],o[1]);
+  ctx.font='8px Silkscreen';ctx.fillStyle='#f0c281';ctx.textBaseline='top';ctx.fillText('< TO JAIL',0,0);ctx.restore();
+}
 function jail(t){
-  // floor, walls and trim of the annex
-  for(let x=Math.floor(JX0);x<JX1;x++)for(let y=Math.floor(JY0);y<JY1;y++){
-    const x0=Math.max(x,JX0),y0=Math.max(y,JY0),x1=Math.min(x+1,JX1),y1=Math.min(y+1,JY1);
-    poly([iso(x0,y0),iso(x1,y0),iso(x1,y1),iso(x0,y1)],(x+y)%2?'#232d2c':'#1f2827');
-  }
+  // back walls and floor
   poly([iso(JX0,JY0,0),iso(JX1,JY0,0),iso(JX1,JY0,JH),iso(JX0,JY0,JH)],'#1c2524');
   poly([iso(JX0,JY0,0),iso(JX0,JY1,0),iso(JX0,JY1,JH),iso(JX0,JY0,JH)],'#161e1d');
   poly([iso(JX0,JY0,JH),iso(JX1,JY0,JH),iso(JX1,JY0,JH+4),iso(JX0,JY0,JH+4)],'#3a4847');
   poly([iso(JX0,JY0,JH),iso(JX0,JY1,JH),iso(JX0,JY1,JH+4),iso(JX0,JY0,JH+4)],'#303c3b');
-  // a little barred window and a cot
-  ctx.save();const w=iso(JX0+2.2,JY0,44);ctx.transform(1,0.5,0,1,w[0],w[1]);
-  ctx.fillStyle='#0a1112';ctx.fillRect(0,0,26,14);ctx.fillStyle='#8fa7a3';for(let i=4;i<26;i+=5)ctx.fillRect(i,0,1,14);ctx.restore();
-  box(JX0+0.3,JY0+0.4,0,2.4,0.9,5,{t:'#8d9a98',l:'#566361',r:'#6b7876',e:'#b4c1bf'});
-  box(JX0+0.5,JY0+0.45,5,0.7,0.8,2,{t:'#e9e4d0',l:'#bdb8a4',r:'#d3ceba'});
-  // inmates wander, sorted back to front
-  const cx=(JX0+JX1)/2,cy=(JY0+JY1)/2+0.4;
+  for(let x=Math.floor(JX0);x<JX1;x++)for(let y=Math.floor(JY0);y<JY1;y++){
+    const x0=Math.max(x,JX0),y0=Math.max(y,JY0),x1=Math.min(x+1,JX1),y1=Math.min(y+1,JY1);
+    poly([iso(x0,y0),iso(x1,y0),iso(x1,y1),iso(x0,y1)],(x+y)%2?'#232d2c':'#1f2827');
+  }
+  ctx.save();const w=iso(JX0+2.5,JY0,40);ctx.transform(1,0.5,0,1,w[0],w[1]);
+  ctx.fillStyle='#0a1112';ctx.fillRect(0,0,30,14);ctx.fillStyle='#8fa7a3';for(let i=4;i<30;i+=5)ctx.fillRect(i,0,1,14);ctx.restore();
+  box(JX0+0.3,JY0+0.4,0,2.6,1,5,{t:'#8d9a98',l:'#566361',r:'#6b7876',e:'#b4c1bf'});
+  box(JX0+0.5,JY0+0.45,5,0.7,0.9,2,{t:'#e9e4d0',l:'#bdb8a4',r:'#d3ceba'});
+  box(JX0+0.3,JY1-1.4,0,0.9,0.9,6,{t:'#c9d3d1',l:'#8d9a98',r:'#a9b5b3'});
+  // inmates
+  const cx=(JX0+JX1)/2,cy=(JY0+JY1)/2;
   const spots=data.jail.map((p,i)=>{
-    const x=cx+Math.sin(t*0.29+i*2.3)*2.2,y=cy+Math.cos(t*0.21+i*1.7)*2.3;
-    return [p,Math.min(Math.max(x,JX0+.6),JX1-.6),Math.min(Math.max(y,JY0+1.6),JY1-.5)];
+    const x=cx+Math.sin(t*0.27+i*2.3)*2.6,y=cy+Math.cos(t*0.2+i*1.7)*3.4;
+    return [p,Math.min(Math.max(x,JX0+.7),JX1-.6),Math.min(Math.max(y,JY0+1.7),JY1-.6)];
   }).sort((a,b)=>(a[1]+a[2])-(b[1]+b[2]));
   jailTops=spots.map(([p,x,y])=>[p,convict(p,x,y,t)]);
-  // bars: the side facing the office floor, and the front
-  bars(JX1,JY0,JX1,JY1,JH-6);bars(JX0,JY1,JX1,JY1,JH-6);
+  // barred sides facing the viewer, with a door onto the hallway
+  bars(JX1,JY0,JX1,HY0,JH-6);bars(JX1,HY1,JX1,JY1,JH-6);bars(JX0,JY1,JX1,JY1,JH-6);
+  poly([iso(JX1,HY0,JH-6),iso(JX1,HY1,JH-6),iso(JX1,HY1,JH),iso(JX1,HY0,JH)],'#3a4847');
+}
+function guard(t){
+  const g=data.staff.find(s=>s.id==='guard');if(!g)return;
+  // paces slowly along the front of the jail, keeping an eye on it
+  const x=JX0+2.2+(REDUCED?1.5:(Math.sin(t*0.35)+1)*1.8),y=JY1+1.1;
+  const [px,py]=iso(x,y,0),bx=Math.round(px),by=Math.round(py);
+  const step=REDUCED?0:(Math.sin(t*5)>0?1:0);
+  const r=(dx,dy,w,h,f)=>{ctx.fillStyle=f;ctx.fillRect(bx+dx,by+dy,w,h)};
+  ctx.fillStyle='#0006';ctx.beginPath();ctx.ellipse(bx,by,6,3,0,0,7);ctx.fill();
+  r(-4,-8,3,8-step,'#141c2e');r(1,-8,3,7+step,'#141c2e');
+  r(-5,-21,10,13,'#1f3a6b');r(2,-21,3,13,'#172c52');r(-5,-10,10,2,'#0c0f14');r(-2,-18,2,2,'#f0c281');
+  r(-6,-20,1,8,'#1f3a6b');r(5,-20,1,8,'#1f3a6b');
+  r(-4,-30,8,9,g.look.skin);r(-5,-32,10,3,'#12213d');r(-3,-34,6,2,'#12213d');r(-1,-33,2,1,'#f0c281');
+  r(-3,-27,6,2,'#0e1519');
+  g.sx=bx;g.sy=by-16;guardSpot=[bx,by-36];
 }
 function jailLabels(){
   jailTops.forEach(([p,top])=>{
@@ -183,7 +211,7 @@ function jailLabels(){
     pill(p.sx,top-2,b.text,b.tone<0?'#9a3b34':'#33494a','#f2fff6','12px VT323');
     if(selected===p.id||hover===p.id)pill(p.sx,top-18*ts,p.name.toUpperCase(),'#c7f78c','#10230f','8px Silkscreen',3);
   });
-  label((JX0+JX1)/2,JY0+0.2,JH+26,'TIPSTER JAIL',data.jail.length?`${data.jail.length} fired`:'no inmates yet');
+  label((JX0+JX1)/2,(JY0+JY1)/2-2,JH+34,'TIPSTER JAIL',data.jail.length?`${data.jail.length} fired`:'no inmates yet');
 }
 function plant(x,y){box(x-0.25,y-0.25,0,0.5,0.5,8,{t:'#6b4a2e',l:'#4a311d',r:'#5a3c24'});const [px,py]=iso(x,y,8);ctx.fillStyle='#3fa36a';ctx.fillRect(px-6,py-14,12,12);ctx.fillStyle='#57c985';ctx.fillRect(px-3,py-18,6,8)}
 
@@ -191,7 +219,7 @@ function scene(t){
   ts=Math.min(Math.max(0.9/cam.z,1),2.2);
   ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#07130f';ctx.fillRect(0,0,cv.width,cv.height);
   ctx.setTransform(dpr*cam.z,0,0,dpr*cam.z,dpr*(cw/2-cam.x*cam.z),dpr*(ch/2-cam.y*cam.z));
-  floor();walls();jail(t);
+  floor();walls();jail(t);hallway();guard(t);hallwayFront();
   const staff=Object.fromEntries(data.staff.map(s=>[s.id,s]));
   glassRoom(1,1,7.5,6,34,true);
   if(staff.commish){person(staff.commish,4.2,2.7,t);}

@@ -93,7 +93,7 @@ function openSheet(id){
   if(!who){sh.hidden=true;return}
   sh.hidden=false;sprite($('sheetAv'),who.look);
   $('sheetNm').textContent=who.name.toUpperCase();
-  const desk=t?(S.roster.desks.find(d=>d.key===t.desk)||{label:''}).label:'FRONT OFFICE';
+  const desk=t?(S.roster.desks.find(d=>d.key===t.desk)||{label:''}).label:(id==='guard'?'TIPSTER JAIL':'FRONT OFFICE');
   const replacedBy=jailed&&jailed.replaced_by?[...S.roster.tipsters,...(S.roster.jail||[])].find(x=>x.id===jailed.replaced_by):null;
   $('sheetRole').textContent=jailed?`FIRED ${new Date(jailed.fired_at).toLocaleDateString([], {month:'short',day:'numeric'})} · ${jailed.fired_note||''}${replacedBy?' · replaced by '+replacedBy.name:''}`
     :`${who.role} · ${desk}${who.original?' · original five':''}${who.replaces?' · new hire':''}`;
