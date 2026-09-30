@@ -68,6 +68,17 @@ a{color:var(--teal)}
 .sheet .pickline{font-size:12px;background:var(--bg);border:1px solid var(--line);padding:6px 8px}
 .sheet .x{position:absolute;top:6px;right:8px;font:14px var(--f-display);color:var(--quiet);padding:4px}
 
+.chat{position:absolute;left:10px;right:10px;bottom:10px;max-width:480px;max-height:calc(100% - 60px);overflow:auto;background:var(--surface);border:2px solid #72b6e6;padding:12px;box-shadow:0 6px 0 #000a}
+.chat .x{position:absolute;top:6px;right:8px;font:14px var(--f-display);color:var(--quiet);padding:4px}
+.chat .ch{font:12px var(--f-display);letter-spacing:.08em;color:#9fd3f5;font-weight:400;display:block;margin-bottom:8px;padding-right:24px}
+.chat .msgs{display:grid;gap:8px}
+.chat .msg{display:flex;gap:8px;align-items:flex-start}
+.chat .msg canvas{width:22px;height:28px;image-rendering:pixelated;flex:none;background:var(--raised)}
+.chat .msg b{font:10px var(--f-display);letter-spacing:.05em;color:var(--teal);font-weight:400}
+.chat .msg p{margin:1px 0 0;font-size:12px}
+.chat .older{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.chat .older button{font:9px var(--f-display);padding:4px 7px;border:1px solid var(--line);color:var(--quiet)}
+.chat .older button.on{border-color:#72b6e6;color:#9fd3f5}
 /* slate */
 .memo{border:2px solid var(--amber);background:#1a170c;padding:12px 14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start}
 .memo canvas{width:48px;height:60px;image-rendering:pixelated;background:#2a2412}

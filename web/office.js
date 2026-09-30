@@ -133,7 +133,7 @@ function deskSign(x,y,len,text,n){
 /* ---- tipster jail: its own building at the end of a hallway off the left wall, with a guard outside */
 const HX0=-6,HX1=0,HY0=21.6,HY1=23.4;          // hallway
 const JX0=-13.5,JX1=-6,JY0=17.4,JY1=27,JH=52;  // jail building
-let jailTops=[],guardSpot=null;
+let jailTops=[],guardSpot=null,coolerSpot=null;
 function bars(x0,y0,x1,y1,h){
   const n=Math.round(Math.hypot(x1-x0,y1-y0)*4);
   ctx.strokeStyle='#8fa7a3';ctx.lineWidth=1;
@@ -213,6 +213,24 @@ function jailLabels(){
   });
   label((JX0+JX1)/2,(JY0+JY1)/2-2,JH+34,'TIPSTER JAIL',data.jail.length?`${data.jail.length} fired`:'no inmates yet');
 }
+/* ---- the water cooler: tap it to read the break-room chatter */
+function watercooler(x,y,t){
+  ctx.fillStyle='#0006';ctx.beginPath();const [sx,sy]=iso(x,y,0);ctx.ellipse(sx,sy,9,4,0,0,7);ctx.fill();
+  box(x-0.3,y-0.3,0,0.6,0.6,17,{t:'#e8eef0',l:'#b9c4c8',r:'#d2dbde',e:'#ffffff'});
+  const [tx,ty]=iso(x,y+0.3,12);ctx.fillStyle='#2b6cb0';ctx.fillRect(Math.round(tx)-3,Math.round(ty),2,2);ctx.fillStyle='#d64545';ctx.fillRect(Math.round(tx)+1,Math.round(ty),2,2);
+  box(x-0.24,y-0.24,17,0.48,0.48,14,{t:'#b9e2fb',l:'#4f9fd9',r:'#72b6e6',e:'#d9f0ff'});
+  const bob=REDUCED?0:Math.sin(t*2)*0.6;
+  const [bx,by]=iso(x-0.05,y+0.1,24+bob);ctx.fillStyle='#e8f6ff';ctx.fillRect(Math.round(bx),Math.round(by),2,2);
+  box(x-0.08,y-0.08,31,0.16,0.16,2,{t:'#2b6cb0',l:'#1d4f86',r:'#245f9e'});
+  box(x+0.32,y-0.1,6,0.12,0.2,8,{t:'#f4f4f4',l:'#cfcfcf',r:'#e0e0e0'});
+  const [px,py]=iso(x,y,34);coolerSpot={id:'cooler',sx:px,sy:py+14};
+}
+function coolerLabel(t){
+  if(!coolerSpot)return;
+  const fresh=data.cooler&&data.cooler.fresh;
+  if(fresh){const dots=REDUCED?'...':'.'.repeat(1+Math.floor(t*2)%3);pill(coolerSpot.sx,coolerSpot.sy-18,'NEW CHAT'+dots.padEnd(3,' '),'#f0c281','#2a1c05','8px Silkscreen',4)}
+  if(selected==='cooler'||hover==='cooler')pill(coolerSpot.sx,coolerSpot.sy-(fresh?34:18)*ts,'WATER COOLER','#c7f78c','#10230f','8px Silkscreen',3);
+}
 function plant(x,y){box(x-0.25,y-0.25,0,0.5,0.5,8,{t:'#6b4a2e',l:'#4a311d',r:'#5a3c24'});const [px,py]=iso(x,y,8);ctx.fillStyle='#3fa36a';ctx.fillRect(px-6,py-14,12,12);ctx.fillStyle='#57c985';ctx.fillRect(px-3,py-18,6,8)}
 
 function scene(t){
@@ -240,10 +258,10 @@ function scene(t){
     const sel=ppl.find(p=>p.id===selected);
     if(sel)poly([iso(sel.fx-0.6,sel.fy-0.5),iso(sel.fx+0.6,sel.fy-0.5),iso(sel.fx+0.6,sel.fy+0.2),iso(sel.fx-0.6,sel.fy+0.2)],null,'#c7f78c');
   });
-  plant(22.5,1.5);plant(9,1);plant(22.5,22.5);plant(1.5,16);
+  plant(22.5,1.5);plant(9,1);watercooler(22.5,22.5,t);plant(1.5,16);
   label(4.2,1.4,62,'CEO',staff.commish?staff.commish.name:'');label(4.2,8.4,60,'RISK BOARD','3 members');
   tops.forEach(([p,by])=>bubble(p,by-22,t));
-  jailLabels();
+  jailLabels();coolerLabel(t);
   data.staff.forEach(s=>{if(s.sx!=null&&(selected===s.id||hover===s.id))pill(s.sx,s.sy-14,s.name.toUpperCase(),'#c7f78c','#10230f','8px Silkscreen',3)});
 }
 function resize(){const r=cv.getBoundingClientRect();cw=r.width;ch=r.height;dpr=Math.min(window.devicePixelRatio||1,2);cv.width=Math.round(cw*dpr);cv.height=Math.round(ch*dpr);last=0}
@@ -264,7 +282,7 @@ function zoomAt(f,px,py){
 }
 function loop(ts){if(visible&&ts-last>90){last=ts;scene(ts/1000)}requestAnimationFrame(loop)}
 function toScene(e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left-cw/2)/cam.z+cam.x,(e.clientY-r.top-ch/2)/cam.z+cam.y]}
-function hit(e){const [x,y]=toScene(e);let best=null,bd=14;[...data.people,...data.staff,...data.jail].forEach(a=>{if(a.sx==null)return;const d=Math.hypot(a.sx-x,a.sy-y);if(d<bd){bd=d;best=a}});return best}
+function hit(e){const [x,y]=toScene(e);let best=null,bd=14;[...data.people,...data.staff,...data.jail,...(coolerSpot?[coolerSpot]:[])].forEach(a=>{if(a.sx==null)return;const d=Math.hypot(a.sx-x,a.sy-y);if(d<bd){bd=d;best=a}});return best}
 
 window.Office={
   init(canvas,cb){

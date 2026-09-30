@@ -225,3 +225,19 @@ class LineShopping(unittest.TestCase):
                 notify.push = orig
             self.assertEqual(sent[0][0], "Bet won!")
             self.assertIn("WON Dallas Cowboys moneyline (LowVig): +$2.70", sent[0][1])
+
+
+class WaterCooler(unittest.TestCase):
+    def test_fallback_chat_once_per_moment(self):
+        from lab import cooler
+        with tempfile.TemporaryDirectory() as tmp:
+            s = settings(tmp)
+            lab = Lab(s, DB(s.db_path), brain=Brain(s))
+            day = lab.today()
+            lab.db.run("INSERT INTO picks(id,local_day,created_at,agent,event_id,sport,home,away,commence,market,selection,price,edge,stake_units) "
+                       "VALUES('p',?,?,'ursula','e','americanfootball_nfl','H','A',?,'h2h','A',150,0.01,1)", (day, iso(), iso()))
+            c = cooler.chat(lab, "morning")
+            self.assertTrue(c and c["lines"][0]["speaker"] == "ursula")
+            self.assertIsNone(cooler.chat(lab, "morning"))
+            from lab.state import build_state
+            self.assertEqual(build_state(s, lab.db)["cooler"][0]["kind"], "morning")

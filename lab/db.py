@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS tipsters (
   id TEXT PRIMARY KEY, data TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','jailed')),
   seat INTEGER NOT NULL, hired_at TEXT, fired_at TEXT, fired_note TEXT, replaces TEXT, replaced_by TEXT
 );
+CREATE TABLE IF NOT EXISTS watercooler (
+  id INTEGER PRIMARY KEY, day TEXT NOT NULL, kind TEXT NOT NULL, created_at TEXT NOT NULL, lines TEXT NOT NULL, UNIQUE(day, kind)
+);
 CREATE TABLE IF NOT EXISTS meetings (
   id INTEGER PRIMARY KEY, week TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, report TEXT NOT NULL,
   mvp TEXT, fired TEXT, hired TEXT, detail TEXT NOT NULL DEFAULT '{}'

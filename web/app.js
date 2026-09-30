@@ -82,7 +82,8 @@ function office(){
   const P=S.paper;
   const jail=(S.roster.jail||[]).map((t,i)=>{const a=byAgent[t.id];return {id:t.id,name:t.name,look:t.look,i:60+i,
     bubble:a&&a.paper.graded?{text:units(a.paper.units),tone:Math.sign(Math.round(a.paper.units*10))}:{text:'FIRED',tone:-1}}});
-  Office.set({desks:S.roster.desks,people:list,staff,jail,screen:{title:'FIRM BANKROLL · PAPER',big:money(P.seeded+P.profit),up:P.profit>=0,
+  const latest=(S.cooler||[])[0];let seen='';try{seen=localStorage.getItem('lab-cooler-seen')||''}catch(e){}
+  Office.set({cooler:{fresh:!!latest&&latest.created_at>seen},desks:S.roster.desks,people:list,staff,jail,screen:{title:'FIRM BANKROLL · PAPER',big:money(P.seeded+P.profit),up:P.profit>=0,
     line1:`${pct(P.profit/P.seeded)}  CLV ${S.paper.clv_n?pct(S.paper.clv):'—'}`,line2:`${today.length} PICKS TODAY · ${today.filter(p=>p.real_pick).length} REAL`,series,board:bd}});
 }
 function openSheet(id){
@@ -108,6 +109,25 @@ function openSheet(id){
     const line=x=>`<div class="pickline"><b>${x.local_day===S.day?'Today':'Open'}:</b> ${esc(x.bet)} ${esc(x.price_txt)} · ${esc(x.game)} · ${esc(when(x.commence))} · ${x.stake_units}u${x.result?` · <span class="pill ${x.result}">${x.result.toUpperCase()}</span>`:''}${x.real_pick?' <span class="pill real">REAL $</span>':''}</div>`;
     picks.innerHTML=mineAll.length?mineAll.map(line).join(''):`<div class="pickline">${jailed?'Serving time. No desk, no new picks; any open bets still get graded.':'Nothing today that clears the price bar.'}</div>`;
   }else{nums.hidden=true;picks.innerHTML=''}
+}
+
+/* ---------------------------------------------------------------- water cooler */
+function openChat(i){
+  const all=S.cooler||[],c=all[i],box=$('chat');
+  box.hidden=false;
+  if(!c){box.innerHTML=`<button class="x" id="chatX" aria-label="Close">X</button><b class="ch">WATER COOLER</b><p class="q">Nobody's talked yet. The first chatter shows up after the morning slate.</p>`;$('chatX').onclick=()=>{box.hidden=true;Office.select(null)};return}
+  try{if(all[0])localStorage.setItem('lab-cooler-seen',all[0].created_at)}catch(e){}
+  const who=Object.fromEntries([...S.roster.tipsters,...(S.roster.jail||[]),...Object.values(S.roster.staff).map(s=>({...s}))].map(a=>[a.id,a]));
+  const when={morning:'THIS MORNING',evening:'LAST NIGHT',meeting:'AFTER THE BOARD MEETING'};
+  const label=x=>{const d=new Date(x.day+'T12:00');const today=x.day===S.day;return (today?'':d.toLocaleDateString([], {weekday:'short'}).toUpperCase()+' · ')+(x.kind==='morning'?'MORNING':x.kind==='evening'?'NIGHT':'MEETING')};
+  box.innerHTML=`<button class="x" id="chatX" aria-label="Close">X</button><b class="ch">WATER COOLER · ${esc(c.day===S.day?(when[c.kind]||''):label(c))}</b>
+    <div class="msgs">${c.lines.map((l,j)=>{const a=who[l.speaker]||{name:l.speaker,look:{shirt:'#888',hair:'#444',skin:'#ccc'}};
+      return `<div class="msg"><canvas width="13" height="16" data-i="${j}"></canvas><div><b>${esc(a.name)}</b><p>${esc(l.text)}</p></div></div>`}).join('')}</div>
+    ${all.length>1?`<div class="older">${all.map((x,j)=>`<button data-c="${j}" class="${j===i?'on':''}">${esc(label(x))}</button>`).join('')}</div>`:''}`;
+  box.querySelectorAll('.msg canvas').forEach(cv=>{const l=c.lines[+cv.dataset.i];const a=who[l.speaker];if(a&&a.look)sprite(cv,a.look)});
+  box.querySelectorAll('.older button').forEach(b=>b.onclick=()=>openChat(+b.dataset.c));
+  $('chatX').onclick=()=>{box.hidden=true;Office.select(null)};
+  office();
 }
 
 /* ---------------------------------------------------------------- slate */
@@ -370,7 +390,7 @@ $('modePaper').onclick=()=>setMode('paper');$('modeReal').onclick=()=>setMode('r
 $('sheetX').onclick=()=>{Office.select(null);openSheet(null)};
 $('zIn').onclick=()=>Office.zoom(1.25);$('zOut').onclick=()=>Office.zoom(0.8);$('zFit').onclick=()=>Office.fit();$('toSlate').onclick=()=>show('slate');
 
-Office.init($('office'),id=>openSheet(id));
+Office.init($('office'),id=>{if(id==='cooler'){openSheet(null);openChat(0)}else{$('chat').hidden=true;openSheet(id)}});
 sprite($('ceoAv'),{shirt:'#f0c281',hair:'#dcdcdc',skin:'#d9a57c'});
 show(['office','slate','tipsters','ledger'].includes(view)?view:'office');
 load();

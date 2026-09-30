@@ -301,6 +301,9 @@ class Lab:
             if p["board_status"] != "vetoed":
                 self.db.feed(f"{describe(p)} · {matchup(p)}", p["agent"])
         self._alert(kind, new, memo_ids)
+        if kind == "slate":
+            from . import cooler
+            cooler.chat(self, "morning", day)
         return {"fetched": fetched, "notes": notes, "candidates": len(cands), "picks": len(new), "paper_bets": placed,
                 "real_recommended": len(memo_ids), "credits_today": self.odds.credits_today()}
 
@@ -431,12 +434,17 @@ class Lab:
                 self.grade(now)  # settle the weekend before judging it
                 if meeting.hold(self, now):
                     did.append("meeting")
+                    from . import cooler
+                    cooler.chat(self, "meeting", day)
             if hour >= self.s.recap_hour and self.db.get("last_recap") != day:
                 from . import alerts
                 self.grade(now)
                 self.db.put("last_recap", day)
                 if alerts.recap(self.s, self.db, day):
                     did.append("recap")
+                from . import cooler
+                if self.db.one("SELECT 1 FROM picks WHERE result IS NOT NULL AND graded_at>?", (iso(now - timedelta(hours=20)),)):
+                    cooler.chat(self, "evening", day)
             if hour >= self.s.backup_hour and self.db.get("last_backup") != day:
                 from .backup import backup
                 backup(self.s.db_path, day)

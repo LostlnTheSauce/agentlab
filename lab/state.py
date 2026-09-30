@@ -142,6 +142,9 @@ def build_state(settings, db: DB) -> dict:
         g["stake"] += b["stake_cents"] / 100
         g["profit"] += (b["profit_cents"] or 0) / 100
         g["agents"].append(names.get(b["agent"], {}).get("name", b["agent"]))
+    cooler = db.all("SELECT day, kind, created_at, lines FROM watercooler ORDER BY id DESC LIMIT 6")
+    for c in cooler:
+        c["lines"] = json.loads(c["lines"])
     meetings = db.all("SELECT week, created_at, report, mvp, fired, hired, detail FROM meetings ORDER BY week DESC LIMIT 8")
     for m in meetings:
         m["detail"] = json.loads(m["detail"] or "{}")
@@ -149,7 +152,7 @@ def build_state(settings, db: DB) -> dict:
     stale = db.all("SELECT id FROM picks WHERE result IS NULL AND commence<?", (iso(now - timedelta(hours=8)),))
 
     return {
-        "now": now.isoformat(), "day": day, "roster": roster.public_roster(db), "agents": agents, "meetings": meetings, "picks": views,
+        "now": now.isoformat(), "day": day, "roster": roster.public_roster(db), "agents": agents, "meetings": meetings, "cooler": cooler, "picks": views,
         "memo": memo, "runs": runs, "feed": db.all("SELECT at, agent, text FROM feed ORDER BY id DESC LIMIT 30"),
         "paper": {**totals("paper"), "seeded": seeded, "balance": round(sum(paper_w.values()), 2), "clv": clv["c"], "clv_n": clv["n"], "equity": equity("paper")},
         "real": {**totals("real"), "seeded": seeded, "balance": round(sum(real_w.values()), 2), "equity": equity("real"), "bets": list(grouped.values())},
