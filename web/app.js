@@ -355,11 +355,29 @@ function jailBox(byAgent){
 
 /* ---------------------------------------------------------------- my bets */
 let betFilter='all';
+/* COMING UP: open bets by day and kickoff time; a parlay appears under each of its legs' games */
+function scheduleHtml(open){
+  const rows=[];
+  open.forEach(b=>(b.games||[]).forEach(g=>{if(g.leg&&g.leg_result)return;rows.push({t:new Date(g.commence),game:g.game,sport:g.sport,
+    label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
+  if(!rows.length)return '';
+  rows.sort((a,b)=>a.t-b.t);
+  const now=new Date(),dayKey=d=>d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
+  const tomorrow=new Date(now.getTime()+864e5);
+  const dayName=d=>dayKey(d)===dayKey(now)?'TODAY':dayKey(d)===dayKey(tomorrow)?'TOMORROW':d.toLocaleDateString([], {weekday:'long'}).toUpperCase();
+  const days=[];rows.forEach(r=>{let d=days.find(x=>x.k===dayKey(r.t));if(!d)days.push(d={k:dayKey(r.t),date:r.t,games:[]});
+    let g=d.games.find(x=>x.game===r.game&&+x.t===+r.t);if(!g)d.games.push(g={t:r.t,game:r.game,sport:r.sport,bets:[]});g.bets.push(r)});
+  return `<div class="h2">COMING UP</div><div class="sched">${days.map(d=>`<div class="sday"><div class="sdate"><b>${dayName(d.date)}</b> ${esc(d.date.toLocaleDateString([], {month:'short',day:'numeric'}).toUpperCase())}</div>
+    ${d.games.map(g=>`<div class="sgame"><div class="stime">${g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
+      <div class="sbody"><div class="sg"><b>${esc(g.game)}</b> <span class="q">${esc(g.sport)}</span></div>
+        ${g.bets.map(x=>`<div class="sbet">${esc(x.label)} <span class="q">· ${esc(x.sub)}</span></div>`).join('')}</div></div>`).join('')}</div>`).join('')}</div>`;
+}
 function myBetsView(){
   const M=S.mine,A=M.all,box=$('myBets');
   if(!M.bets.length){box.innerHTML='<div class="empty">No real bets yet. Tap BET on a pick in the Slate tab, place it on your sportsbook, then tap I PLACED IT, and it shows up here.</div>';return}
   const rec=(t,label,c)=>`<div class="${c}"><b>${label}:</b> ${t.n} bet${t.n===1?'':'s'}${t.settled?` · ${t.w}–${t.l}${t.p?'–'+t.p:''} · <span class="${cls(t.profit)}">${money(t.profit,true)}</span>`:''}${t.open?` · ${t.open} open`:''}</div>`;
   const rate=A.w+A.l?Math.round(A.w/(A.w+A.l)*100)+'%':'—';
+  const sched=scheduleHtml(M.bets.filter(b=>b.status==='open'));
   const F=[['all','ALL',M.bets.length],['open','OPEN',A.open],['won','WON',A.w],['lost','LOST',A.l]];
   if(A.p)F.push(['push','PUSH',A.p]);
   const list=M.bets.filter(b=>betFilter==='all'||b.status===betFilter);
@@ -375,6 +393,8 @@ function myBetsView(){
       </div>
       <div class="split">${rec(M.ceo,'CEO recommended','ceo')}${rec(M.mine,'Your calls','own')}</div>
     </div>
+    ${sched}
+    <div class="h2">ALL MY BETS</div>
     <div class="filters">${F.map(([k,l,n])=>`<button data-bf="${k}" class="${betFilter===k?'on':''}">${l} ${n}</button>`).join('')}</div>
     <div class="betlist">${list.map(b=>{
       const amt=b.status==='open'?`${money(b.to_win)}<small>TO WIN</small>`:b.status==='push'?`$0.00<small>PUSH</small>`:`<span class="${cls(b.profit)}">${money(b.profit,true)}</span><small>${b.status==='won'?'WON':'LOST'}</small>`;

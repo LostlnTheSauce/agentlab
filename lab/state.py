@@ -203,7 +203,7 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
     tz = ZoneInfo(settings.timezone)
     rows = db.all("SELECT b.pick_id, b.agent, b.stake_cents, b.price, b.result, b.profit_cents, b.placed_at, b.settled_at, b.book, "
                   "p.home, p.away, p.market, p.selection, p.point, p.player, p.commence, p.sport, p.real_pick, p.ceo_rank, p.clv, "
-                  "p.board_status, p.local_day, p.event_id FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' ORDER BY b.placed_at DESC, b.id")
+                  "p.board_status, p.local_day, p.event_id, p.legs FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' ORDER BY b.placed_at DESC, b.id")
     groups: dict[tuple, dict] = {}
     for r in rows:
         k = (r["placed_at"], r["price"], r["event_id"], r["market"], r["selection"], r["point"])
@@ -215,6 +215,8 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
                 "commence": r["commence"], "placed_at": r["placed_at"], "result": r["result"], "stake": 0.0, "profit": 0.0,
                 "agents": [], "recommended": False, "ceo_rank": None, "clv": r["clv"],
                 "placed_day": parse(r["placed_at"]).astimezone(tz).date().isoformat(),
+                "games": [{"game": f"{r['away']} @ {r['home']}", "commence": r["commence"], "sport": short(r["sport"]), "leg": None}],
+                "_legs": json.loads(r["legs"]) if r["market"] == "parlay" and r["legs"] else None,
             }
         g["stake"] += r["stake_cents"] / 100
         g["profit"] += (r["profit_cents"] or 0) / 100
@@ -226,6 +228,13 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
             g["ceo_rank"] = g["ceo_rank"] or r["ceo_rank"]
     bets = list(groups.values())
     for b in bets:
+        leg_ids = b.pop("_legs", None)
+        if leg_ids:
+            legs = db.all("SELECT home, away, commence, sport, market, selection, point, player, price, result FROM picks WHERE id IN (%s) ORDER BY commence"
+                          % ",".join("?" * len(leg_ids)), leg_ids)
+            if legs:
+                b["games"] = [{"game": f"{l['away']} @ {l['home']}", "commence": l["commence"], "sport": short(l["sport"]),
+                               "leg": describe(l).rsplit(" ", 1)[0], "leg_result": l["result"]} for l in legs]
         b["stake"], b["profit"] = round(b["stake"], 2), round(b["profit"], 2)
         b["to_win"] = round(b["stake"] * (om.dec(b["price"]) - 1), 2)
         b["status"] = "open" if not b["result"] else {"win": "won", "loss": "lost"}.get(b["result"], "push")

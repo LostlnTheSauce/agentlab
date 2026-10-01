@@ -91,6 +91,18 @@ a{color:var(--teal)}
 .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:8px;font-size:12px}
 .split div{border-left:3px solid var(--line);padding-left:8px}
 .split .ceo{border-color:var(--amber)} .split .own{border-color:var(--teal)}
+.sched{display:grid;gap:10px}
+.sday{border:2px solid var(--line);background:var(--surface)}
+.sdate{font:11px var(--f-display);letter-spacing:.08em;color:var(--quiet);padding:6px 10px;border-bottom:1px solid var(--line);background:var(--raised)}
+.sdate b{color:var(--lime);font-weight:400}
+.sgame{display:grid;grid-template-columns:76px minmax(0,1fr);gap:10px;padding:8px 10px;border-bottom:1px solid var(--line2)}
+.sgame:last-child{border-bottom:0}
+.stime{font:20px/1.1 var(--f-data);color:var(--amber)}
+.livetag{font:10px var(--f-display);letter-spacing:.06em;color:#2a0905;background:var(--loss);padding:2px 5px}
+.sbody{min-width:0;display:grid;gap:2px}
+.sg b{font-weight:500;overflow-wrap:anywhere} .sg .q{font-size:11px}
+.sbet{font-size:12px;border-left:3px solid var(--teal);padding-left:8px;overflow-wrap:anywhere}
+.sbet .q{font-size:11px}
 .betlist{display:grid;gap:8px;margin-top:10px}
 .brow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;border:2px solid var(--line);background:var(--surface);padding:8px 10px}
 .brow.won{border-color:#2f6b49} .brow.lost{border-color:#7a3b35} .brow.open{border-color:var(--line)}

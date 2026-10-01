@@ -330,3 +330,24 @@ class MyBets(unittest.TestCase):
             self.assertEqual(m["today_placed"], 3)
             self.assertEqual({b["status"] for b in m["bets"]}, {"won", "lost", "open"})
             self.assertEqual(next(b for b in m["bets"] if b["status"] == "open")["to_win"], 2.0)
+
+
+class Schedule(unittest.TestCase):
+    def test_parlay_lists_each_leg_game(self):
+        from lab import ledger
+        from lab.state import build_state
+        with tempfile.TemporaryDirectory() as tmp:
+            s = settings(tmp)
+            db = DB(s.db_path)
+            sat, sun = iso(datetime.now(timezone.utc) + timedelta(days=2)), iso(datetime.now(timezone.utc) + timedelta(days=3))
+            ins = ("INSERT INTO picks(id,local_day,created_at,agent,event_id,sport,home,away,commence,market,selection,point,price,stake_units,legs) "
+                   "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,?)")
+            db.run(ins, ("l1", "2026-10-01", iso(), "quinn", "e1", "americanfootball_ncaaf", "Kansas", "Middle Tennessee", sat, "h2h", "Middle Tennessee", None, 817, None))
+            db.run(ins, ("l2", "2026-10-01", iso(), "chaos", "e2", "americanfootball_nfl", "Seahawks", "Chargers", sun, "spreads", "Chargers", 7.0, 101, None))
+            db.run(ins, ("par", "2026-10-01", iso(), "lydon", "e1", "americanfootball_ncaaf", "Kansas", "Middle Tennessee", sat, "parlay", "MT + Chargers +7", None, 1707, '["l1","l2"]'))
+            ledger.place_real(db, "par", 1707, 1.0, "lowvig")
+            ledger.place_real(db, "l2", 101, 1.0, "lowvig")
+            bets = {b["id"]: b for b in build_state(s, db)["mine"]["bets"]}
+            self.assertEqual([g["game"] for g in bets["par"]["games"]], ["Middle Tennessee @ Kansas", "Chargers @ Seahawks"])
+            self.assertEqual(bets["par"]["games"][1]["leg"], "Chargers +7")
+            self.assertEqual(len(bets["l2"]["games"]), 1)
