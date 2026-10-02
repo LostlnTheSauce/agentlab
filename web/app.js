@@ -354,7 +354,24 @@ function jailBox(byAgent){
 }
 
 /* ---------------------------------------------------------------- my bets */
-let betFilter='all';const openGames=new Set();
+let betFilter='all';const openGames=new Set(),openBets=new Set();
+/* what the market has done since you placed a bet */
+function moveHtml(b){
+  const m=b.move,pt=v=>(b.bet.includes('Over')||b.bet.includes('Under'))?String(v):(v>0?'+':'')+v;
+  if(!m)return `<div class="mv q">Parlays aren't tracked for price moves; each leg's own game decides it.</div>`;
+  const got=`You got <b>${esc(m.then_txt)}</b> at ${esc(b.book)}.`;
+  if(m.kind==='none')return `<div class="mv">${got} <span class="q">No newer price check since you bet. The next scan updates this.</span></div>`;
+  if(m.kind==='closed'){
+    const v=m.value;return `<div class="mv">${got} It closed at <b>${esc(m.now_txt)}</b>${m.fair_txt?` (fair ${esc(m.fair_txt)})`:''}.
+      ${v!=null?`<div class="${cls(v)}">${v>0?'You beat the closing line by '+pct(v)+'.':'The closing line beat you by '+pct(-v).replace('+','')+'.'}</div>`:''}</div>`}
+  const as=`<span class="q">as of ${esc(ago(m.as_of))}</span>`;
+  if(m.kind==='line')return `<div class="mv">${got} The line has moved to <b>${esc(pt(m.line_now))}</b>${m.now_txt?' '+esc(m.now_txt):''} ${as}.
+    <div class="${m.direction==='for'?'up':'down'}">${m.direction==='for'?'Moved toward you: your number is now better than what\'s on offer.':'Moved against you: a better number is available now.'}</div></div>`;
+  const dir={for:['up','Moved toward you: the price is worse now, so the market has come around to your side.'],
+    against:['down','Moved against you: the same bet pays more now than when you took it.'],flat:['q','Basically unchanged.']}[m.direction];
+  return `<div class="mv">${got} Now <b>${esc(m.now_txt||'—')}</b>${m.fair_txt?` (fair ${esc(m.fair_txt)})`:''} ${as}.
+    <div class="${dir[0]}">${dir[1]}</div>${m.value!=null?`<div class="q">Your price vs today's fair price: <span class="${cls(m.value)}">${pct(m.value)}</span></div>`:''}</div>`;
+}
 /* COMING UP: open bets by day and kickoff time; a parlay appears under each of its legs' games */
 function scheduleHtml(open){
   const rows=[];
@@ -397,17 +414,22 @@ function myBetsView(){
       <div class="split">${rec(M.ceo,'CEO recommended','ceo')}${rec(M.mine,'Your calls','own')}</div>
     </div>
     ${sched}
-    <div class="h2">ALL MY BETS</div>
+    <div class="h2">ALL MY BETS <span class="q" style="font:11px var(--f-body);letter-spacing:0">· tap a bet to see how its odds have moved</span></div>
     <div class="filters">${F.map(([k,l,n])=>`<button data-bf="${k}" class="${betFilter===k?'on':''}">${l} ${n}</button>`).join('')}</div>
     <div class="betlist">${list.map(b=>{
       const amt=b.status==='open'?`${money(b.to_win)}<small>TO WIN</small>`:b.status==='push'?`$0.00<small>PUSH</small>`:`<span class="${cls(b.profit)}">${money(b.profit,true)}</span><small>${b.status==='won'?'WON':'LOST'}</small>`;
       const tag=b.recommended?`<span class="tag ceo">REAL $${b.ceo_rank?' #'+b.ceo_rank:''}</span>`:'<span class="tag own">YOUR CALL</span>';
       const clv=b.clv!=null&&b.status!=='open'?` · CLV <span class="${cls(b.clv)}">${pct(b.clv)}</span>`:'';
-      return `<div class="brow ${b.status}"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
-        <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>${tag}
+      const bkey=b.id+'|'+b.placed_at,isOpen=openBets.has(bkey);
+      const arrow=b.move&&b.move.direction==='for'?' <span class="up">▲</span>':b.move&&b.move.direction==='against'?' <span class="down">▼</span>':'';
+      return `<div class="brow ${b.status}${isOpen?' open2':''}" data-bet="${esc(bkey)}" role="button" tabindex="0" aria-expanded="${isOpen}"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
+        <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>${tag}${arrow}
           <div class="g">${esc(b.book)} · ${money(b.stake)} · ${esc(b.game)} · ${esc(when(b.commence))}</div>
-          <div class="g">${esc(b.agents.join(', '))}${clv}</div></div>
+          <div class="g">${esc(b.agents.join(', '))}${clv}</div>
+          ${isOpen?moveHtml(b):''}</div>
         <div class="amt">${amt}</div></div>`}).join('')||'<div class="empty">Nothing here.</div>'}</div>`;
+  box.querySelectorAll('.brow').forEach(x=>{const tog=()=>{const k=x.dataset.bet;openBets.has(k)?openBets.delete(k):openBets.add(k);myBetsView()};
+    x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog()}}});
   box.querySelectorAll('[data-bf]').forEach(x=>x.onclick=()=>{betFilter=x.dataset.bf;myBetsView()});
   box.querySelectorAll('.sgame').forEach(x=>{const tog=e=>{if(e.target.closest('a'))return;const k=x.dataset.game;openGames.has(k)?openGames.delete(k):openGames.add(k);myBetsView()};
     x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog(e)}}});

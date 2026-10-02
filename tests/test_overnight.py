@@ -375,3 +375,51 @@ class WatchInfo(unittest.TestCase):
             self.assertEqual(lab.refresh_watch_info(), 0)  # already known: no repeat lookups
             g = build_state(s, db)["mine"]["bets"][0]["games"][0]
             self.assertEqual((g["tv"], g["link"]), ("CBS", "https://www.espn.com/nfl/game/_/gameId/99/x"))
+
+
+class PriceMoves(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db = DB(Path(self.tmp.name) / "m.sqlite3")
+        self.placed = "2026-10-01T15:00:00Z"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def line(self, market, sel, point, price, fair, at):
+        self.db.run("INSERT INTO lines(event_id,market,selection,point,bov_price,fair_prob,books,seen_at) VALUES('e',?,?,?,?,?,5,?)",
+                    (market, sel, point, price, fair, at))
+
+    def move(self, market, sel, point, price, status="open", close=(None, None)):
+        from lab.state import price_move
+        return price_move(self.db, ("e", market, sel, point), price, self.placed, close, status)
+
+    def test_no_newer_check(self):
+        self.line("h2h", "Dallas", None, 130, 0.43, "2026-10-01T13:00:00Z")
+        self.assertEqual(self.move("h2h", "Dallas", None, 130)["kind"], "none")
+
+    def test_price_shortened_is_toward_you(self):
+        self.line("h2h", "Dallas", None, 115, 0.46, "2026-10-01T20:00:00Z")
+        m = self.move("h2h", "Dallas", None, 130)
+        self.assertEqual((m["kind"], m["direction"], m["now_txt"]), ("price", "for", "+115"))
+        self.assertGreater(m["value"], 0)  # +130 against a 46% fair price is good value
+
+    def test_price_drifted_is_against_you(self):
+        self.line("h2h", "Dallas", None, 150, 0.40, "2026-10-01T20:00:00Z")
+        self.assertEqual(self.move("h2h", "Dallas", None, 130)["direction"], "against")
+
+    def test_spread_and_total_line_moves(self):
+        self.line("spreads", "Packers", -4.5, -110, 0.5, "2026-10-01T20:00:00Z")
+        self.assertEqual(self.move("spreads", "Packers", -3.5, -110)["direction"], "for")       # you hold -3.5, now -4.5
+        self.line("spreads", "Chargers", 6.0, -110, 0.5, "2026-10-01T20:00:00Z")
+        self.assertEqual(self.move("spreads", "Chargers", 7.0, 101)["direction"], "for")        # you hold +7, now +6
+        self.line("totals", "Over", 44.5, -110, 0.5, "2026-10-01T20:00:00Z")
+        self.assertEqual(self.move("totals", "Over", 42.5, -108)["direction"], "for")           # you hold over 42.5, now 44.5
+        self.line("totals", "Under", 44.5, -110, 0.5, "2026-10-01T20:00:00Z")
+        self.assertEqual(self.move("totals", "Under", 46.0, -110)["direction"], "for")          # you hold under 46, now 44.5
+        self.assertEqual(self.move("totals", "Under", 43.0, -110)["direction"], "against")
+
+    def test_graded_bet_uses_the_close(self):
+        m = self.move("h2h", "Dallas", None, 130, status="won", close=(118, 0.455))
+        self.assertEqual((m["kind"], m["now_txt"]), ("closed", "+118"))
+        self.assertAlmostEqual(m["value"], om.edge(0.455, 130))

@@ -196,6 +196,38 @@ def splits(db: DB, settings) -> dict[str, list[dict]]:
     return out
 
 
+def price_move(db: DB, key: tuple, price: int, placed_at: str, close: tuple, status: str) -> dict | None:
+    """How the market has moved since you placed a bet, from the prices saved at every scan (no extra credits).
+    A price that got worse after you bet means the market moved toward your side."""
+    event_id, market, selection, point = key
+    same = db.one("SELECT bov_price, fair_prob, seen_at FROM lines WHERE event_id=? AND market=? AND selection=? AND point IS ? "
+                  "ORDER BY seen_at DESC, id DESC LIMIT 1", (event_id, market, selection, point))
+    latest = db.one("SELECT point, bov_price, fair_prob, seen_at FROM lines WHERE event_id=? AND market=? AND selection=? "
+                    "ORDER BY seen_at DESC, id DESC LIMIT 1", (event_id, market, selection))
+    out = {"then_txt": om.fmt(price), "point": point}
+    if status != "open" and close[0]:
+        out.update(kind="closed", now_txt=om.fmt(close[0]), fair_txt=om.fmt(om.american_from_prob(close[1])) if close[1] else None,
+                   value=om.edge(close[1], price) if close[1] else None)
+        return out
+    if not latest or latest["seen_at"] <= placed_at:
+        out.update(kind="none")
+        return out
+    out["as_of"] = latest["seen_at"]
+    if point is not None and latest["point"] is not None and latest["point"] != point and (not same or same["seen_at"] < latest["seen_at"]):
+        # the number itself moved: a bigger number is better for the bettor (+7 beats +6.5, -3 beats -3.5; totals flip for unders)
+        better_for_me = point > latest["point"] if not (market == "totals" and selection == "Over") else point < latest["point"]
+        out.update(kind="line", line_now=latest["point"], now_txt=om.fmt(latest["bov_price"]) if latest["bov_price"] else None,
+                   direction="for" if better_for_me else "against")
+        return out
+    row = same or latest
+    shift = om.implied(row["bov_price"]) - om.implied(price) if row["bov_price"] else 0.0
+    out.update(kind="price", now_txt=om.fmt(row["bov_price"]) if row["bov_price"] else None,
+               fair_txt=om.fmt(om.american_from_prob(row["fair_prob"])) if row["fair_prob"] else None,
+               value=om.edge(row["fair_prob"], price) if row["fair_prob"] else None,
+               direction="for" if shift > 0.004 else "against" if shift < -0.004 else "flat")
+    return out
+
+
 def my_bets(db: DB, settings, names: dict, day: str) -> dict:
     """Every real bet you placed (merged tipsters' shares combined), plus totals split by
     CEO-recommended vs. your own calls."""
@@ -203,7 +235,7 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
     tz = ZoneInfo(settings.timezone)
     rows = db.all("SELECT b.pick_id, b.agent, b.stake_cents, b.price, b.result, b.profit_cents, b.placed_at, b.settled_at, b.book, "
                   "p.home, p.away, p.market, p.selection, p.point, p.player, p.commence, p.sport, p.real_pick, p.ceo_rank, p.clv, "
-                  "p.board_status, p.local_day, p.event_id, p.legs FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' ORDER BY b.placed_at DESC, b.id")
+                  "p.board_status, p.local_day, p.event_id, p.legs, p.close_price, p.close_fair FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' ORDER BY b.placed_at DESC, b.id")
     groups: dict[tuple, dict] = {}
     for r in rows:
         k = (r["placed_at"], r["price"], r["event_id"], r["market"], r["selection"], r["point"])
@@ -217,6 +249,7 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
                 "placed_day": parse(r["placed_at"]).astimezone(tz).date().isoformat(),
                 "games": [{"game": f"{r['away']} @ {r['home']}", "commence": r["commence"], "sport": short(r["sport"]), "leg": None, "event_id": r["event_id"]}],
                 "_legs": json.loads(r["legs"]) if r["market"] == "parlay" and r["legs"] else None,
+                "_key": (r["event_id"], r["market"], r["selection"], r["point"]), "_close": (r["close_price"], r["close_fair"]),
             }
         g["stake"] += r["stake_cents"] / 100
         g["profit"] += (r["profit_cents"] or 0) / 100
@@ -238,6 +271,10 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
         b["stake"], b["profit"] = round(b["stake"], 2), round(b["profit"], 2)
         b["to_win"] = round(b["stake"] * (om.dec(b["price"]) - 1), 2)
         b["status"] = "open" if not b["result"] else {"win": "won", "loss": "lost"}.get(b["result"], "push")
+
+    for b in bets:
+        key, close = b.pop("_key"), b.pop("_close")
+        b["move"] = None if key[1] == "parlay" else price_move(db, key, b["price"], b["placed_at"], close, b["status"])
 
     ev_ids = list({g["event_id"] for b in bets for g in b["games"]})
     watch = {}
