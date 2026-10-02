@@ -87,19 +87,18 @@ python -m unittest discover -s tests
 
 The **Run slate now** button starts a background process from the web app. If your host blocks that, the cron job still runs everything on schedule.
 
-## Updating the live site (git, two clicks)
+## Updating the live site (automatic)
 
-One-time setup:
+The code lives in a public GitHub repo. A cron job on the server runs `deploy.sh` every 5 minutes: if GitHub has a
+newer commit, it pulls it, copies the app into `~/agentlab`, installs any new packages, and restarts the app. So an
+update is just `git push`; it is live within about 5 minutes. `data/` and `.env` on the server are never touched,
+and deploys are logged in `data/deploy.log`.
 
-1. Create a **private** repository on GitHub (e.g. `agentlab`) and push this folder to it:
-   ```bash
-   git remote add origin https://github.com/YOURNAME/agentlab.git
-   git push -u origin main
-   ```
-2. On GitHub: **Settings → Developer settings → Fine-grained tokens → Generate**, repository access *only* `agentlab`, permission **Contents: Read-only**. Copy the token.
-3. In cPanel: **Git Version Control → Create**. Clone URL `https://YOURNAME:TOKEN@github.com/YOURNAME/agentlab.git`, repository path `repositories/agentlab`, name `agentlab`.
+```
+*/5 * * * * /bin/sh $HOME/repositories/agentlab/deploy.sh >> $HOME/agentlab/data/deploy.log 2>&1
+```
 
-Every update after that: push to GitHub, then in cPanel **Git Version Control → Manage → Pull or Deploy → Update from Remote → Deploy HEAD Commit**. `.cpanel.yml` copies the code into `~/agentlab`, installs any new packages, and restarts the app. Your `data/` folder and `.env` on the server are never touched.
+Manual fallback: cPanel -> Git Version Control -> Manage -> Pull or Deploy -> Update from Remote -> Deploy HEAD Commit.
 
 ## Costs
 
