@@ -402,6 +402,31 @@ class Lab:
             done.append(sport)
         return done
 
+    def refresh_watch_info(self) -> int:
+        """TV channel and ESPN link for games with open real bets, including parlay legs. Networks get announced
+        late, so this re-checks until a channel is known."""
+        ids = set()
+        for r in self.db.all("SELECT p.event_id, p.legs FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' AND b.result IS NULL"):
+            ids.add(r["event_id"])
+            for leg in json.loads(r["legs"] or "[]"):
+                row = self.db.one("SELECT event_id FROM picks WHERE id=?", (leg,))
+                if row:
+                    ids.add(row["event_id"])
+        done = 0
+        for ev_id in ids:
+            ev = self.db.one("SELECT * FROM events WHERE id=?", (ev_id,))
+            if not ev or ev["status"] == "final":
+                continue
+            cx = json.loads(ev["context"] or "{}")
+            if cx.get("broadcast") and cx.get("espn_link"):
+                continue
+            g = self.espn.find(ev["sport"], ev["home"], ev["away"], ev["commence"])
+            if g and (g.get("broadcast") or g.get("link")):
+                cx.update(broadcast=g.get("broadcast") or cx.get("broadcast"), espn_link=g.get("link") or cx.get("espn_link"))
+                self.db.run("UPDATE events SET context=?, espn_id=COALESCE(espn_id, ?) WHERE id=?", (json.dumps(cx), g.get("espn_id"), ev_id))
+                done += 1
+        return done
+
     def grade(self, now: datetime | None = None) -> int:
         from . import alerts
         was_open = alerts.open_real_picks(self.db)
@@ -444,6 +469,10 @@ class Lab:
             last = self.db.get("last_grade")
             if not last or parse(last) < now - timedelta(minutes=20):
                 self.db.put("last_grade", iso(now))
+                try:
+                    self.refresh_watch_info()
+                except Exception:  # never let a schedule nicety block grading
+                    log.exception("watch info refresh failed")
                 if self.grade(now):
                     did.append("grade")
             from . import meeting

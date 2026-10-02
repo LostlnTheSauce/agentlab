@@ -73,7 +73,16 @@ def _game(e: dict) -> dict | None:
         except ValueError:
             return None
 
+    names: list[str] = []
+    for b in c.get("broadcasts") or []:
+        for n in b.get("names") or []:
+            if n and n not in names:
+                names.append(n)
+    link = next((l.get("href") for l in e.get("links") or [] if "summary" in (l.get("rel") or [])), None)
+    if not (isinstance(link, str) and link.startswith("https://www.espn.com/")):
+        link = None
     return {
+        "broadcast": ", ".join(names) or (c.get("broadcast") or None), "link": link,
         "espn_id": e["id"], "date": e.get("date") or c.get("date"), "name": e.get("name"),
         "home": h["team"].get("displayName", ""), "away": a["team"].get("displayName", ""),
         "home_abbr": h["team"].get("abbreviation"), "away_abbr": a["team"].get("abbreviation"),

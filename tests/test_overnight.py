@@ -351,3 +351,27 @@ class Schedule(unittest.TestCase):
             self.assertEqual([g["game"] for g in bets["par"]["games"]], ["Middle Tennessee @ Kansas", "Chargers @ Seahawks"])
             self.assertEqual(bets["par"]["games"][1]["leg"], "Chargers +7")
             self.assertEqual(len(bets["l2"]["games"]), 1)
+
+
+class WatchInfo(unittest.TestCase):
+    def test_refresh_fills_tv_and_link_for_open_real_bets(self):
+        from lab import ledger
+        from lab.state import build_state
+
+        class FakeEspn:
+            def find(self, sport, home, away, commence):
+                return {"espn_id": "99", "broadcast": "CBS", "link": "https://www.espn.com/nfl/game/_/gameId/99/x"}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            s = settings(tmp)
+            db = DB(s.db_path)
+            lab = Lab(s, db, brain=Brain(s), espn=FakeEspn())
+            kick = iso(datetime.now(timezone.utc) + timedelta(days=2))
+            db.run("INSERT INTO events(id,sport,home,away,commence) VALUES('e1','americanfootball_nfl','Houston Texans','Dallas Cowboys',?)", (kick,))
+            db.run("INSERT INTO picks(id,local_day,created_at,agent,event_id,sport,home,away,commence,market,selection,price,stake_units) "
+                   "VALUES('p','2026-10-01',?,'ursula','e1','americanfootball_nfl','Houston Texans','Dallas Cowboys',?,'h2h','Dallas Cowboys',130,1)", (iso(), kick))
+            ledger.place_real(db, "p", 130, 2.0, "bovada")
+            self.assertEqual(lab.refresh_watch_info(), 1)
+            self.assertEqual(lab.refresh_watch_info(), 0)  # already known: no repeat lookups
+            g = build_state(s, db)["mine"]["bets"][0]["games"][0]
+            self.assertEqual((g["tv"], g["link"]), ("CBS", "https://www.espn.com/nfl/game/_/gameId/99/x"))

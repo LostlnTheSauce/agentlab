@@ -57,7 +57,8 @@ class Research:
             g = self.espn.find(ev["sport"], ev["home"], ev["away"], ev["commence"])
             if g:
                 cx.update(espn_id=g["espn_id"], home_record=g["home_record"], away_record=g["away_record"], venue=g["venue"],
-                          city=g["city"], region=g["region"], country=g["country"], indoor=g["indoor"], neutral=g["neutral"])
+                          city=g["city"], region=g["region"], country=g["country"], indoor=g["indoor"], neutral=g["neutral"],
+                          broadcast=g.get("broadcast"), espn_link=g.get("link"))
                 cx["venue_tz"] = STATE_TZ.get(g["region"] or "", "INTL" if g["country"] and g["country"] != "USA" else None)
             cx["home_tz"], cx["away_tz"] = team_tz(ev["home"]), team_tz(ev["away"])
             ctx[ev_id] = cx

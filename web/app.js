@@ -354,11 +354,11 @@ function jailBox(byAgent){
 }
 
 /* ---------------------------------------------------------------- my bets */
-let betFilter='all';
+let betFilter='all';const openGames=new Set();
 /* COMING UP: open bets by day and kickoff time; a parlay appears under each of its legs' games */
 function scheduleHtml(open){
   const rows=[];
-  open.forEach(b=>(b.games||[]).forEach(g=>{if(g.leg&&g.leg_result)return;rows.push({t:new Date(g.commence),game:g.game,sport:g.sport,
+  open.forEach(b=>(b.games||[]).forEach(g=>{if(g.leg&&g.leg_result)return;rows.push({t:new Date(g.commence),game:g.game,sport:g.sport,tv:g.tv,link:g.link,venue:g.venue,
     label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
   if(!rows.length)return '';
   rows.sort((a,b)=>a.t-b.t);
@@ -366,11 +366,14 @@ function scheduleHtml(open){
   const tomorrow=new Date(now.getTime()+864e5);
   const dayName=d=>dayKey(d)===dayKey(now)?'TODAY':dayKey(d)===dayKey(tomorrow)?'TOMORROW':d.toLocaleDateString([], {weekday:'long'}).toUpperCase();
   const days=[];rows.forEach(r=>{let d=days.find(x=>x.k===dayKey(r.t));if(!d)days.push(d={k:dayKey(r.t),date:r.t,games:[]});
-    let g=d.games.find(x=>x.game===r.game&&+x.t===+r.t);if(!g)d.games.push(g={t:r.t,game:r.game,sport:r.sport,bets:[]});g.bets.push(r)});
+    let g=d.games.find(x=>x.game===r.game&&+x.t===+r.t);if(!g)d.games.push(g={t:r.t,game:r.game,sport:r.sport,tv:r.tv,link:r.link,venue:r.venue,bets:[]});g.bets.push(r)});
   return `<div class="h2">COMING UP</div><div class="sched">${days.map(d=>`<div class="sday"><div class="sdate"><b>${dayName(d.date)}</b> ${esc(d.date.toLocaleDateString([], {month:'short',day:'numeric'}).toUpperCase())}</div>
-    ${d.games.map(g=>`<div class="sgame"><div class="stime">${g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
+    ${d.games.map(g=>{const key=g.game+'|'+(+g.t),isOpen=openGames.has(key);return `<div class="sgame${isOpen?' open':''}" data-game="${esc(key)}" role="button" tabindex="0" aria-expanded="${isOpen}"><div class="stime">${g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
       <div class="sbody"><div class="sg"><b>${esc(g.game)}</b> <span class="q">${esc(g.sport)}</span></div>
-        ${g.bets.map(x=>`<div class="sbet">${esc(x.label)} <span class="q">· ${esc(x.sub)}</span></div>`).join('')}</div></div>`).join('')}</div>`).join('')}</div>`;
+        ${g.bets.map(x=>`<div class="sbet">${esc(x.label)} <span class="q">· ${esc(x.sub)}</span></div>`).join('')}
+        ${isOpen?`<div class="watch"><div><b>WATCH</b> ${g.tv?esc(g.tv):'<span class="q">TV channel not announced yet</span>'}${g.venue?` <span class="q">· ${esc(g.venue)}</span>`:''}</div>
+          ${g.link?`<a class="golink" href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">LIVE SCORE ON ESPN ↗</a>`:''}</div>`
+          :`<div class="tvhint q">${g.tv?esc(g.tv)+' · ':''}tap for how to watch</div>`}</div></div>`}).join('')}</div>`).join('')}</div>`;
 }
 function myBetsView(){
   const M=S.mine,A=M.all,box=$('myBets');
@@ -406,6 +409,8 @@ function myBetsView(){
           <div class="g">${esc(b.agents.join(', '))}${clv}</div></div>
         <div class="amt">${amt}</div></div>`}).join('')||'<div class="empty">Nothing here.</div>'}</div>`;
   box.querySelectorAll('[data-bf]').forEach(x=>x.onclick=()=>{betFilter=x.dataset.bf;myBetsView()});
+  box.querySelectorAll('.sgame').forEach(x=>{const tog=e=>{if(e.target.closest('a'))return;const k=x.dataset.game;openGames.has(k)?openGames.delete(k):openGames.add(k);myBetsView()};
+    x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog(e)}}});
 }
 
 /* ---------------------------------------------------------------- ledger */
