@@ -10,6 +10,7 @@ from . import ledger
 from . import oddsmath as om
 from .agents import describe
 from .db import DB, iso, local_day, parse, utcnow
+from .explain import needs
 from .research import briefing
 from . import roster
 from .sources.odds import book_name, short
@@ -26,6 +27,7 @@ def pick_view(p: dict, ctx: dict, members: dict, real: dict, settings, names: di
         "id": p["id"], "agent": p["agent"], "created_at": p["created_at"], "agent_name": names.get(p["agent"], {}).get("name", p["agent"]),
         "sport": short(p["sport"]), "league": LEAGUE.get(p["sport"], short(p["sport"])),
         "game": f"{p['away']} @ {p['home']}", "commence": p["commence"], "bet": describe(p).rsplit(" ", 1)[0],
+        "needs": needs(p["market"], p["selection"], p["point"], p["sport"], p.get("player")),
         "market": p["market"], "price": p["price"], "price_txt": om.fmt(p["price"]),
         "fair_txt": om.fmt(om.american_from_prob(p["fair_prob"])) if p["fair_prob"] else "—",
         "edge": p["edge"], "min_price": p["min_price"], "min_txt": om.fmt(p["min_price"]),
@@ -247,6 +249,7 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
                 "commence": r["commence"], "placed_at": r["placed_at"], "result": r["result"], "stake": 0.0, "profit": 0.0,
                 "agents": [], "recommended": False, "ceo_rank": None, "clv": r["clv"],
                 "placed_day": parse(r["placed_at"]).astimezone(tz).date().isoformat(),
+                "needs": needs(r["market"], r["selection"], r["point"], r["sport"], r.get("player")),
                 "games": [{"game": f"{r['away']} @ {r['home']}", "commence": r["commence"], "sport": short(r["sport"]), "leg": None, "event_id": r["event_id"]}],
                 "_legs": json.loads(r["legs"]) if r["market"] == "parlay" and r["legs"] else None,
                 "_key": (r["event_id"], r["market"], r["selection"], r["point"]), "_close": (r["close_price"], r["close_fair"]),
@@ -267,7 +270,8 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
                           % ",".join("?" * len(leg_ids)), leg_ids)
             if legs:
                 b["games"] = [{"game": f"{l['away']} @ {l['home']}", "commence": l["commence"], "sport": short(l["sport"]),
-                               "leg": describe(l).rsplit(" ", 1)[0], "leg_result": l["result"], "event_id": l["event_id"]} for l in legs]
+                               "leg": describe(l).rsplit(" ", 1)[0], "leg_result": l["result"], "event_id": l["event_id"],
+                               "needs": needs(l["market"], l["selection"], l["point"], l["sport"], l.get("player"))} for l in legs]
         b["stake"], b["profit"] = round(b["stake"], 2), round(b["profit"], 2)
         b["to_win"] = round(b["stake"] * (om.dec(b["price"]) - 1), 2)
         b["status"] = "open" if not b["result"] else {"win": "won", "loss": "lost"}.get(b["result"], "push")

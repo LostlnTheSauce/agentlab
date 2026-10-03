@@ -150,7 +150,7 @@ function card(p){
   const edgeTxt=p.edge==null?'—':pct(p.edge,2);
   const rb=p.real_bet;
   el.innerHTML=`<div class="chead"><canvas width="13" height="16"></canvas><div class="who"><b>${esc(p.agent_name.toUpperCase())}</b><span>${esc(t.role)} · ${esc(p.league)}</span></div><div class="chips">${chips.join('')}</div></div>
-    <div><div class="mkt">${esc(p.bet)}</div><div class="game">${esc(p.game)} · ${esc(when(p.commence))}</div></div>
+    <div><div class="mkt">${esc(p.bet)}</div><div class="game">${esc(p.game)} · ${esc(when(p.commence))}</div>${p.needs?`<div class="needs">${esc(p.needs)}</div>`:''}</div>
     <div class="odds"><div><b>${esc((p.book_name||'Bovada').toUpperCase())}</b><span>${esc(p.price_txt)}</span></div><div><b>FAIR</b><span>${esc(p.fair_txt)}${p.estimated?'*':''}</span></div><div><b>VS FAIR</b><span class="${cls(p.edge)}">${edgeTxt}</span></div><div><b>FLOOR</b><span>${esc(p.min_txt)}</span></div></div>
     ${(p.prices||[]).length>1?`<p class="also">Also: ${p.prices.filter(x=>x.book!==p.book).map(x=>`${esc(x.name)} ${esc(x.txt)}`).join(' · ')}</p>`:''}
     <p class="why">"${esc(p.reasoning)}"</p>
@@ -240,7 +240,7 @@ const parsePrice=s=>{const m=String(s).trim().replace('−','-').match(/^([+-]?)
 const dec=a=>a>0?1+a/100:1+100/-a;
 function openPlace(p){
   placing=p;
-  $('placeWhat').textContent=`${p.bet} ${p.price_txt}`;
+  $('placeWhat').textContent=`${p.bet} ${p.price_txt}`;$('placeNeeds').textContent=p.needs||'';
   placeBook=p.book||'bovada';renderBooks(p);
   $('placeSteps').innerHTML=[`Open <b>${esc(p.book_name||'Bovada')}</b> → ${esc(p.league)} → <b>${esc(p.game)}</b>.`,`Find <b>${esc(p.bet)}</b>. It was ${esc(p.price_txt)} when picked.`,
     p.min_price!=null?`Only bet if the price is <b>${esc(p.min_txt)}</b> or better. Worse than that, the edge is gone: cancel and pass.`:'No floor for this one; use your judgment.',
@@ -376,7 +376,7 @@ function moveHtml(b){
 function scheduleHtml(open){
   const rows=[];
   open.forEach(b=>(b.games||[]).forEach(g=>{if(g.leg&&g.leg_result)return;rows.push({t:new Date(g.commence),game:g.game,sport:g.sport,tv:g.tv,link:g.link,venue:g.venue,
-    label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
+    label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,needs:g.leg?g.needs:b.needs,sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
   if(!rows.length)return '';
   rows.sort((a,b)=>a.t-b.t);
   const now=new Date(),dayKey=d=>d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
@@ -387,7 +387,7 @@ function scheduleHtml(open){
   return `<div class="h2">COMING UP</div><div class="sched">${days.map(d=>`<div class="sday"><div class="sdate"><b>${dayName(d.date)}</b> ${esc(d.date.toLocaleDateString([], {month:'short',day:'numeric'}).toUpperCase())}</div>
     ${d.games.map(g=>{const key=g.game+'|'+(+g.t),isOpen=openGames.has(key);return `<div class="sgame${isOpen?' open':''}" data-game="${esc(key)}" role="button" tabindex="0" aria-expanded="${isOpen}"><div class="stime">${g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
       <div class="sbody"><div class="sg"><b>${esc(g.game)}</b> <span class="q">${esc(g.sport)}</span></div>
-        ${g.bets.map(x=>`<div class="sbet">${esc(x.label)} <span class="q">· ${esc(x.sub)}</span></div>`).join('')}
+        ${g.bets.map(x=>`<div class="sbet">${esc(x.label)} <span class="q">· ${esc(x.sub)}</span>${x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}</div>`).join('')}
         ${isOpen?`<div class="watch"><div><b>WATCH</b> ${g.tv?esc(g.tv):'<span class="q">TV channel not announced yet</span>'}${g.venue?` <span class="q">· ${esc(g.venue)}</span>`:''}</div>
           ${g.link?`<a class="golink" href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">LIVE SCORE ON ESPN ↗</a>`:''}</div>`
           :`<div class="tvhint q">${g.tv?esc(g.tv)+' · ':''}tap for how to watch</div>`}</div></div>`}).join('')}</div>`).join('')}</div>`;
@@ -425,6 +425,7 @@ function myBetsView(){
       return `<div class="brow ${b.status}${isOpen?' open2':''}" data-bet="${esc(bkey)}" role="button" tabindex="0" aria-expanded="${isOpen}"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
         <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>${tag}${arrow}
           <div class="g">${esc(b.book)} · ${money(b.stake)} · ${esc(b.game)} · ${esc(when(b.commence))}</div>
+          ${b.needs?`<div class="needs">${esc(b.needs)}</div>`:''}
           <div class="g">${esc(b.agents.join(', '))}${clv}</div>
           ${isOpen?moveHtml(b):''}</div>
         <div class="amt">${amt}</div></div>`}).join('')||'<div class="empty">Nothing here.</div>'}</div>`;

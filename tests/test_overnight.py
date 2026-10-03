@@ -423,3 +423,18 @@ class PriceMoves(unittest.TestCase):
         m = self.move("h2h", "Dallas", None, 130, status="won", close=(118, 0.455))
         self.assertEqual((m["kind"], m["now_txt"]), ("closed", "+118"))
         self.assertAlmostEqual(m["value"], om.edge(0.455, 130))
+
+
+class Needs(unittest.TestCase):
+    def test_plain_english(self):
+        from lab.explain import needs
+        self.assertEqual(needs("spreads", "Virginia Tech Hokies", -2.5, "americanfootball_ncaaf"), "Virginia Tech Hokies must win by 3 or more points.")
+        self.assertIn("exactly 3 is a push", needs("spreads", "Green Bay Packers", -3.0, "americanfootball_nfl"))
+        self.assertEqual(needs("spreads", "Boston Red Sox", 1.5, "baseball_mlb"), "Boston Red Sox can lose by up to 1 run, or win.")
+        self.assertEqual(needs("spreads", "UTSA Roadrunners", 7.5, "americanfootball_ncaaf"), "UTSA Roadrunners can lose by up to 7 points, or win.")
+        self.assertEqual(needs("h2h", "Dallas Cowboys", None, "americanfootball_nfl"), "Dallas Cowboys must win.")
+        self.assertIn("A draw loses", needs("h2h", "Arsenal", None, "soccer_epl"))
+        self.assertEqual(needs("totals", "Over", 42.5, "americanfootball_nfl"), "Combined score must be 43 or more points.")
+        self.assertEqual(needs("totals", "Under", 8.5, "baseball_mlb"), "Combined score must be 8 or fewer runs.")
+        self.assertIn("Exactly 44 is a push", needs("totals", "Under", 44.0, "americanfootball_nfl"))
+        self.assertEqual(needs("player_receptions", "Over", 6.5, "americanfootball_nfl", "Ja'Marr Chase"), "Ja'Marr Chase needs 7+ catches.")
