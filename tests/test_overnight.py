@@ -438,3 +438,32 @@ class Needs(unittest.TestCase):
         self.assertEqual(needs("totals", "Under", 8.5, "baseball_mlb"), "Combined score must be 8 or fewer runs.")
         self.assertIn("Exactly 44 is a push", needs("totals", "Under", 44.0, "americanfootball_nfl"))
         self.assertEqual(needs("player_receptions", "Over", 6.5, "americanfootball_nfl", "Ja'Marr Chase"), "Ja'Marr Chase needs 7+ catches.")
+
+
+class History(unittest.TestCase):
+    def test_final_scores_and_tipster_history(self):
+        from lab import grading, ledger
+        from lab.state import build_state, final_txt
+        self.assertEqual(final_txt("Virginia Tech Hokies", "Pittsburgh Panthers", 24, 17), "Virginia Tech Hokies 24, Pittsburgh Panthers 17")
+        self.assertEqual(final_txt("Houston Texans", "Dallas Cowboys", 20, 27), "Dallas Cowboys 27, Houston Texans 20")
+        with tempfile.TemporaryDirectory() as tmp:
+            s = settings(tmp)
+            db = DB(s.db_path)
+            kick = iso(datetime.now(timezone.utc) - timedelta(hours=5))
+            db.run("INSERT INTO events(id,sport,home,away,commence,status,home_score,away_score) VALUES('e1','americanfootball_ncaaf','Virginia Tech Hokies','Pittsburgh Panthers',?,'final',24,17)", (kick,))
+            db.run("INSERT INTO picks(id,local_day,created_at,agent,event_id,sport,home,away,commence,market,selection,point,price,stake_units) "
+                   "VALUES('p','2026-10-02',?,'june','e1','americanfootball_ncaaf','Virginia Tech Hokies','Pittsburgh Panthers',?,'spreads','Virginia Tech Hokies',-2.5,-102,1)", (iso(), kick))
+            db.run("INSERT INTO picks(id,local_day,created_at,agent,event_id,sport,home,away,commence,market,selection,point,price,stake_units,group_id) "
+                   "VALUES('q','2026-10-02',?,'chaos','e1','americanfootball_ncaaf','Virginia Tech Hokies','Pittsburgh Panthers',?,'spreads','Virginia Tech Hokies',-2.5,-102,1,'p')", (iso(), kick))
+            ledger.place_real(db, "p", -102, 2.0, "lowvig")
+            for pid in ("p", "q"):
+                grading.manual_grade(db, pid, "win")
+            st = build_state(s, db)
+            bet = st["mine"]["bets"][0]
+            self.assertEqual(bet["games"][0]["final"], "Virginia Tech Hokies 24, Pittsburgh Panthers 17")
+            june = next(a for a in st["agents"] if a["id"] == "june")["recent"][0]
+            chaos = next(a for a in st["agents"] if a["id"] == "chaos")["recent"][0]
+            self.assertEqual((june["result"], june["final"]), ("win", "Virginia Tech Hokies 24, Pittsburgh Panthers 17"))
+            self.assertEqual(june["you"]["stake"], 2.0)   # the whole merged bet, not one tipster's share
+            self.assertEqual(chaos["you"]["stake"], 2.0)
+            self.assertAlmostEqual(june["you"]["profit"], 1.96)

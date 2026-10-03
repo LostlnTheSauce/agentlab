@@ -156,6 +156,11 @@ a{color:var(--teal)}
 .odds b{font:9px var(--f-display);color:var(--quiet);font-weight:400;letter-spacing:.06em}
 .odds span{font:20px/1.1 var(--f-data);font-variant-numeric:tabular-nums}
 .why{font-size:12px;margin:0}
+.final{font-size:12px;color:var(--ink);margin-top:2px}
+.final::before{content:"FINAL ";font:9px var(--f-display);letter-spacing:.06em;color:var(--quiet)}
+.tag.youbet{color:#062019;background:var(--teal);border-color:var(--teal)}
+.sheet .ph{font:10px var(--f-display);letter-spacing:.06em;color:var(--quiet);font-weight:400}
+.sheet .pickline .g{font-size:11px;color:var(--quiet)}
 .needs{font-size:12px;color:var(--lime);margin-top:2px}
 .needs::before{content:"TO WIN: ";font:9px var(--f-display);letter-spacing:.06em;color:var(--quiet)}
 .also{font-size:11px;color:var(--quiet);margin:-4px 0 0}

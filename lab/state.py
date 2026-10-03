@@ -106,6 +106,7 @@ def build_state(settings, db: DB) -> dict:
         return out
 
     breakdown = splits(db, settings)
+    history = tipster_history(db, settings, [t["id"] for t in everyone])
     agents = []
     for a in everyone:
         s = stats[a["id"]]
@@ -116,7 +117,7 @@ def build_state(settings, db: DB) -> dict:
             "real": {"profit": s["real_profit_cents"] / 100, "w": s["real_w"], "l": s["real_l"], "open": s["real_open"]},
             "today": [{"id": v["id"], "bet": v["bet"], "price": v["price_txt"], "board": v["board"]} for v in today],
             "status": "JAILED" if a["status"] == "jailed" else status_of(a, s, real_w[a["id"]], settings),
-            "splits": breakdown.get(a["id"], []),
+            "splits": breakdown.get(a["id"], []), "recent": history.get(a["id"], []),
         })
 
     memo = db.one("SELECT text, created_at FROM memos WHERE local_day=?", (day,))
@@ -195,6 +196,47 @@ def splits(db: DB, settings) -> dict[str, list[dict]]:
                            "units": round(a["units"], 2), "clv": a["clv_sum"] / a["clv_n"] if a["clv_n"] else None})
     for v in out.values():
         v.sort(key=lambda x: -(x["w"] + x["l"] + x["p"]))
+    return out
+
+
+def final_txt(home: str, away: str, home_score, away_score) -> str | None:
+    if home_score is None or away_score is None:
+        return None
+    h, a = f"{home_score:g}", f"{away_score:g}"
+    if home_score == away_score:
+        return f"{away} {a}, {home} {h} (tie)"
+    return f"{home} {h}, {away} {a}" if home_score > away_score else f"{away} {a}, {home} {h}"
+
+
+def tipster_history(db: DB, settings, agent_ids: list[str], limit: int = 10) -> dict[str, list[dict]]:
+    """Each tipster's recent picks (open first, then most recently graded), with final scores and
+    whether you put real money on them (merged picks count the whole bet)."""
+    from .explain import needs as _needs
+    lead_of = {}
+    yours: dict[str, dict] = {}
+    for r in db.all("SELECT b.pick_id, p.group_id, b.stake_cents, b.profit_cents, b.result FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real'"):
+        lead = r["group_id"] or r["pick_id"]
+        lead_of[r["pick_id"]] = lead
+        y = yours.setdefault(lead, {"stake": 0.0, "profit": 0.0, "result": r["result"]})
+        y["stake"] += r["stake_cents"] / 100
+        y["profit"] += (r["profit_cents"] or 0) / 100
+    out = {}
+    for aid in agent_ids:
+        rows = db.all("SELECT p.*, e.home_score, e.away_score, e.status AS ev_status FROM picks p LEFT JOIN events e ON e.id=p.event_id "
+                      "WHERE p.agent=? ORDER BY (p.result IS NULL) DESC, CASE WHEN p.result IS NULL THEN p.commence END, p.graded_at DESC LIMIT ?",
+                      (aid, limit))
+        items = []
+        for p in rows:
+            lead = p["group_id"] or p["id"]
+            y = yours.get(lead) or yours.get(lead_of.get(p["id"], ""))
+            items.append({
+                "id": p["id"], "bet": describe(p).rsplit(" ", 1)[0], "price_txt": om.fmt(p["price"]), "game": f"{p['away']} @ {p['home']}",
+                "commence": p["commence"], "result": p["result"], "real_pick": bool(p["real_pick"]), "board": p["board_status"],
+                "final": final_txt(p["home"], p["away"], p["home_score"], p["away_score"]) if p["market"] != "parlay" else None,
+                "needs": _needs(p["market"], p["selection"], p["point"], p["sport"], p.get("player")) if not p["result"] else None,
+                "you": {"stake": round(y["stake"], 2), "profit": round(y["profit"], 2), "result": y["result"]} if y else None,
+            })
+        out[aid] = items
     return out
 
 
@@ -283,10 +325,10 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
     ev_ids = list({g["event_id"] for b in bets for g in b["games"]})
     watch = {}
     if ev_ids:
-        for r in db.all("SELECT id, context, status, home_score, away_score FROM events WHERE id IN (%s)" % ",".join("?" * len(ev_ids)), ev_ids):
+        for r in db.all("SELECT id, home, away, context, status, home_score, away_score FROM events WHERE id IN (%s)" % ",".join("?" * len(ev_ids)), ev_ids):
             cx = json.loads(r["context"] or "{}")
             watch[r["id"]] = {"tv": cx.get("broadcast"), "link": cx.get("espn_link"), "venue": cx.get("venue"),
-                              "final": f"{r['away_score']:g}–{r['home_score']:g}" if r["status"] == "final" and r["home_score"] is not None else None}
+                              "final": final_txt(r["home"], r["away"], r["home_score"], r["away_score"]) if r["status"] == "final" else None}
     for b in bets:
         for g in b["games"]:
             g.update(watch.get(g.pop("event_id"), {}))

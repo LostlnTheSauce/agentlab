@@ -110,9 +110,12 @@ function openSheet(id){
     nums.hidden=false;
     nums.innerHTML=p.graded?`<span>${p.w}–${p.l}${p.p?'–'+p.p:''}</span><span class="${cls(p.units)}">${units(p.units)}</span><span class="${cls(p.clv)}">CLV ${pct(p.clv)}</span><span>real wallet ${money(a.real_wallet)}</span>`
       :`<span class="q">No graded bets yet</span><span>real wallet ${money(a.real_wallet)}</span>`;
-    const mineAll=S.picks.filter(x=>x.agent===id&&(x.local_day===S.day||!x.result));
-    const line=x=>`<div class="pickline"><b>${x.local_day===S.day?'Today':'Open'}:</b> ${esc(x.bet)} ${esc(x.price_txt)} · ${esc(x.game)} · ${esc(when(x.commence))} · ${x.stake_units}u${x.result?` · <span class="pill ${x.result}">${x.result.toUpperCase()}</span>`:''}${x.real_pick?' <span class="pill real">REAL $</span>':''}</div>`;
-    picks.innerHTML=mineAll.length?mineAll.map(line).join(''):`<div class="pickline">${jailed?'Serving time. No desk, no new picks; any open bets still get graded.':'Nothing today that clears the price bar.'}</div>`;
+    const mineAll=a.recent||[];
+    const st=x=>x.result?`<span class="pill ${x.result}">${x.result.toUpperCase()}</span>`:'<span class="pill passed">OPEN</span>';
+    const you=x=>x.you?` <span class="tag youbet">YOU BET ${money(x.you.stake)}${x.you.result?' · '+money(x.you.profit,true):''}</span>`:'';
+    const line=x=>`<div class="pickline">${st(x)} <b>${esc(x.bet)} ${esc(x.price_txt)}</b>${you(x)}${x.real_pick?' <span class="pill real">REAL $</span>':''}
+      <div class="g">${esc(x.game)} · ${esc(when(x.commence))}</div>${x.final?`<div class="final">${esc(x.final)}</div>`:x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}</div>`;
+    picks.innerHTML=mineAll.length?'<b class="ph">RECENT PICKS</b>'+mineAll.map(line).join(''):`<div class="pickline">${jailed?'Serving time. No desk, no new picks; any open bets still get graded.':'Nothing today that clears the price bar.'}</div>`;
   }else{nums.hidden=true;picks.innerHTML=''}
 }
 
@@ -425,7 +428,8 @@ function myBetsView(){
       return `<div class="brow ${b.status}${isOpen?' open2':''}" data-bet="${esc(bkey)}" role="button" tabindex="0" aria-expanded="${isOpen}"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
         <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>${tag}${arrow}
           <div class="g">${esc(b.book)} · ${money(b.stake)} · ${esc(b.game)} · ${esc(when(b.commence))}</div>
-          ${b.needs?`<div class="needs">${esc(b.needs)}</div>`:''}
+          ${b.status==='open'&&b.needs?`<div class="needs">${esc(b.needs)}</div>`:''}
+          ${(b.games||[]).filter(g=>g.final).map(g=>`<div class="final">${g.leg?esc(g.leg)+': ':''}${esc(g.final)}</div>`).join('')}
           <div class="g">${esc(b.agents.join(', '))}${clv}</div>
           ${isOpen?moveHtml(b):''}</div>
         <div class="amt">${amt}</div></div>`}).join('')||'<div class="empty">Nothing here.</div>'}</div>`;
