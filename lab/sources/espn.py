@@ -22,6 +22,15 @@ PATHS = {
 STOP = {"fc", "afc", "cf", "sc", "the", "de", "club"}
 
 
+def web_link(sport: str, espn_id) -> str | None:
+    """ESPN's game page, for when the scoreboard leaves the link out (it often does once a game is underway)."""
+    path = PATHS.get(sport)
+    if not path or not str(espn_id or "").isdigit():
+        return None
+    league, page = (("soccer", "match") if sport.startswith("soccer_") else (path.split("/")[1], "game"))
+    return f"https://www.espn.com/{league}/{page}/_/gameId/{espn_id}"
+
+
 def norm(name: str) -> set[str]:
     s = name.lower().replace("&", " and ").replace("st.", "state")
     s = re.sub(r"[^a-z0-9 ]", " ", s)

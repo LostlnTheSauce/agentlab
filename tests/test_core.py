@@ -8,7 +8,7 @@ from lab import board, grading, ledger
 from lab import oddsmath as om
 from lab.config import Settings
 from lab.db import DB, iso
-from lab.sources.espn import match_game, similarity
+from lab.sources.espn import match_game, similarity, web_link
 from lab.sources.mlb import ip_to_float
 from lab.sources.odds import build_candidates
 
@@ -106,6 +106,8 @@ class Matching(unittest.TestCase):
                   {"date": iso(NOW), "home": "Milwaukee Brewers", "away": "San Diego Padres", "n": 2}]
         self.assertEqual(match_game("Milwaukee Brewers", "San Diego Padres", iso(NOW), series)["n"], 2)
         self.assertEqual(match_game("Milwaukee Brewers", "San Diego Padres", iso(NOW - timedelta(hours=19.5)), series)["n"], 1)
+        self.assertEqual(web_link("baseball_mlb", "401908003"), "https://www.espn.com/mlb/game/_/gameId/401908003")
+        self.assertIsNone(web_link("baseball_mlb", None))
 
     def test_innings(self):
         self.assertAlmostEqual(ip_to_float("5.2"), 5 + 2 / 3)

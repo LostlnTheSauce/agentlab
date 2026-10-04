@@ -17,7 +17,7 @@ from .db import DB, iso, local_day, parse, utcnow
 from .research import Research
 from . import roster
 from .roster import CFB, NBA, NFL
-from .sources.espn import Espn
+from .sources.espn import Espn, web_link
 from .sources.http import SourceError
 from .sources.odds import PROP_MARKETS, SPORT_INFO, BudgetError, OddsClient, build_candidates, build_prop_candidates, short
 from .strategies import options_for
@@ -427,7 +427,7 @@ class Lab:
             if not g:
                 continue
             new = dict(cx, broadcast=g.get("broadcast") or (cx.get("broadcast") if ev["espn_id"] == g.get("espn_id") else None),
-                       espn_link=g.get("link") or None)
+                       espn_link=g.get("link") or web_link(ev["sport"], g.get("espn_id")))
             if new != cx or ev["espn_id"] != g.get("espn_id"):
                 self.db.run("UPDATE events SET context=?, espn_id=? WHERE id=?", (json.dumps(new), g.get("espn_id"), ev_id))
                 done += 1
