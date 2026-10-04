@@ -11,7 +11,7 @@ you can see, over time, which tipsters actually know something.
 |---|---|---|
 | 8:00 | **Morning slate.** Pull Bovada + 9 other books from The Odds API, research every game, each tipster picks from bets its strategy allows, risk board reviews, CEO writes the memo and picks real-money bets. Phone alert if enabled. | ~3 odds credits per sport, Claude calls |
 | 12:00, 16:00 | **Rescans** for sports with games in the next 18 hours. New strong picks are flagged LATE and alerted. | same, fewer calls |
-| every 15 min | **Closing lines** for games about to start (for CLV), **grading** of finished games from ESPN. | closing: ~3 credits per sport; grading free |
+| every 5 min | **Closing lines** for games about to start (for CLV), **grading** of finished games from ESPN. | closing: ~3 credits per sport; grading free |
 | Sunday 9 PM | **Board meeting.** The Commish writes the weekly minutes, names an MVP, and may fire one tipster (only from a shortlist: enough bets, losing money *and* losing to the closing line, or an empty wallet). The fired tipster goes to **tipster jail** in the office; Claude designs a replacement for the empty seat. | 2 Claude calls |
 | 3 AM | **Backup** of the database to `data/backups/` (last 14 kept). | free |
 
@@ -52,7 +52,7 @@ Useful commands:
 
 ```bash
 python -m lab run slate      # run the morning slate now (spends odds credits)
-python -m lab tick           # what cron does every 15 minutes
+python -m lab tick           # what cron does every 5 minutes
 python -m lab grade          # grade finished games (free)
 python -m lab status         # credits, recent runs
 python -m lab meeting        # hold this week's board meeting now (--force to redo it)
@@ -79,7 +79,7 @@ python -m unittest discover -s tests
    python -m lab run slate                # first slate, to check everything works
    ```
    Then press **Restart** on the Python App page.
-4. **cPanel → Cron Jobs**, every 15 minutes (`*/15 * * * *`), with the virtualenv python path shown on the app page:
+4. **cPanel → Cron Jobs**, every 5 minutes (`*/5 * * * *`), with the virtualenv python path shown on the app page:
    ```
    cd /home/USER/agentlab && /home/USER/virtualenv/agentlab/3.13/bin/python -m lab tick >> data/cron.log 2>&1
    ```

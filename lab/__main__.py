@@ -24,7 +24,7 @@ def main(argv=None) -> int:
     rn.add_argument("--manual", action="store_true", help="tag as a manual run so the daily schedule still happens")
     rn.add_argument("--fresh", action="store_true", help="clear today's untouched picks, memo and chats, then redo the slate")
     rn.add_argument("--extra-credits", type=int, default=0, help="allow this many odds credits past today's cap")
-    sub.add_parser("tick", help="what cron runs every 15 minutes")
+    sub.add_parser("tick", help="what cron runs every 5 minutes")
     sub.add_parser("grade", help="grade finished games (free)")
     sub.add_parser("closing", help="capture closing lines for games about to start")
     sub.add_parser("set-password", help="set the web login password")

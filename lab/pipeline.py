@@ -393,6 +393,10 @@ class Lab:
                 need.add(r["sport"])
         done = []
         for sport in sorted(need):
+            tried = self.db.get(f"closing_try:{sport}")
+            if tried and parse(tried) > now - timedelta(minutes=30):
+                continue
+            self.db.put(f"closing_try:{sport}", iso(now))
             try:
                 events = self.odds.odds(sport)
             except (BudgetError, SourceError) as e:
@@ -443,7 +447,7 @@ class Lab:
                                 "(status='running' AND started_at>?))", (kind, day, iso(utcnow() - timedelta(hours=1)))))
 
     def tick(self, now: datetime | None = None) -> list[str]:
-        """Called every 15 minutes by cron. Idempotent: each job runs at most once per day."""
+        """Called every 5 minutes by cron. Idempotent: each job runs at most once per day."""
         now = now or utcnow()
         lock = self.db.get("tick_lock")
         if lock and parse(lock) > now - timedelta(minutes=25):
@@ -467,7 +471,7 @@ class Lab:
             if self.capture_closing(now):
                 did.append("closing")
             last = self.db.get("last_grade")
-            if not last or parse(last) < now - timedelta(minutes=20):
+            if not last or parse(last) < now - timedelta(minutes=4):
                 self.db.put("last_grade", iso(now))
                 try:
                     self.refresh_watch_info()

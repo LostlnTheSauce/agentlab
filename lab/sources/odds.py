@@ -14,15 +14,16 @@ from .http import SourceError, get_json
 
 BASE = "https://api.the-odds-api.com/v4/sports"
 
+# length_h: earliest a game could be over; grading starts asking ESPN then (ESPN decides when it's final)
 SPORT_INFO = {
-    "americanfootball_nfl": {"short": "NFL", "markets": ["h2h", "spreads", "totals"], "window_h": 150, "length_h": 3.5},
-    "americanfootball_ncaaf": {"short": "CFB", "markets": ["h2h", "spreads", "totals"], "window_h": 150, "length_h": 3.75},
-    "baseball_mlb": {"short": "MLB", "markets": ["h2h", "spreads", "totals"], "window_h": 30, "length_h": 3.5},
-    "basketball_nba": {"short": "NBA", "markets": ["h2h", "spreads", "totals"], "window_h": 30, "length_h": 2.75},
-    "icehockey_nhl": {"short": "NHL", "markets": ["h2h", "spreads", "totals"], "window_h": 30, "length_h": 3},
-    "soccer_epl": {"short": "EPL", "markets": ["h2h", "totals"], "window_h": 54, "length_h": 2.1},
-    "soccer_usa_mls": {"short": "MLS", "markets": ["h2h", "totals"], "window_h": 54, "length_h": 2.1},
-    "soccer_uefa_champs_league": {"short": "UCL", "markets": ["h2h", "totals"], "window_h": 54, "length_h": 2.1},
+    "americanfootball_nfl": {"short": "NFL", "markets": ["h2h", "spreads", "totals"], "window_h": 150, "length_h": 2.75},
+    "americanfootball_ncaaf": {"short": "CFB", "markets": ["h2h", "spreads", "totals"], "window_h": 150, "length_h": 2.75},
+    "baseball_mlb": {"short": "MLB", "markets": ["h2h", "spreads", "totals"], "window_h": 30, "length_h": 2},
+    "basketball_nba": {"short": "NBA", "markets": ["h2h", "spreads", "totals"], "window_h": 30, "length_h": 2},
+    "icehockey_nhl": {"short": "NHL", "markets": ["h2h", "spreads", "totals"], "window_h": 30, "length_h": 2},
+    "soccer_epl": {"short": "EPL", "markets": ["h2h", "totals"], "window_h": 54, "length_h": 1.75},
+    "soccer_usa_mls": {"short": "MLS", "markets": ["h2h", "totals"], "window_h": 54, "length_h": 1.75},
+    "soccer_uefa_champs_league": {"short": "UCL", "markets": ["h2h", "totals"], "window_h": 54, "length_h": 1.75},
 }
 PROP_MARKETS = ["player_receptions", "player_reception_yds", "player_pass_yds", "player_rush_yds"]
 
