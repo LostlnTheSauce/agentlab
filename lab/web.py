@@ -122,6 +122,11 @@ def create_app(settings=None, db: DB | None = None) -> Flask:
     def state():
         return jsonify(build_state(s, db))
 
+    @app.get("/api/live")
+    def live():
+        from .live import live_scores
+        return jsonify(live_scores(db))
+
     @app.post("/api/pick/<pick_id>")
     def pick_action(pick_id):
         body = request.get_json(silent=True) or {}

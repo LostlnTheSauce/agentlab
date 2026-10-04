@@ -26,10 +26,18 @@ async function api(path,body){
 function toast(msg,err){const t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
 
 async function load(){
-  try{S=await api('api/state');fetchedAt=Date.now();render()}
+  try{S=await api('api/state');fetchedAt=Date.now();render();loadLive()}
   catch(e){if(e.message!=='signed out'){$('live').className='live stale';$('liveTxt').textContent='offline, retrying'}}
 }
 setInterval(load,30000);
+/* live scores for games you have money on, only while MY BETS is open */
+let LIVE={},liveBusy=false,liveAt=0;
+async function loadLive(){
+  if(view!=='ledger'||document.hidden||liveBusy||!S||Date.now()-liveAt<50000)return;
+  if(!S.mine.bets.some(b=>b.status==='open'&&(b.games||[]).some(g=>new Date(g.commence)<=Date.now()+6e5)))return;
+  liveBusy=true;liveAt=Date.now();try{LIVE=await api('api/live');myBetsView()}catch(e){}finally{liveBusy=false}
+}
+setInterval(loadLive,60000);document.addEventListener('visibilitychange',loadLive);
 setInterval(()=>{if(!S)return;const busy=S.runs.some(r=>r.status==='running');$('live').className='live'+(busy?' busy':'')+(Date.now()-fetchedAt>90000?' stale':'');
   $('liveTxt').textContent=busy?'desks are working…':'updated '+Math.round((Date.now()-fetchedAt)/1000)+'s ago'},1000);
 
@@ -378,7 +386,7 @@ function moveHtml(b){
 /* COMING UP: open bets by day and kickoff time; a parlay appears under each of its legs' games */
 function scheduleHtml(open){
   const rows=[];
-  open.forEach(b=>(b.games||[]).forEach(g=>{if(g.leg&&g.leg_result)return;rows.push({t:new Date(g.commence),game:g.game,sport:g.sport,tv:g.tv,link:g.link,venue:g.venue,
+  open.forEach(b=>(b.games||[]).forEach(g=>{if(g.leg&&g.leg_result)return;rows.push({t:new Date(g.commence),game:g.game,sport:g.sport,tv:g.tv,link:g.link,venue:g.venue,ev:g.event_id,
     label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,needs:g.leg?g.needs:b.needs,b,isLeg:!!g.leg,others:g.leg?b.games.filter(o=>o!==g):[],sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
   if(!rows.length)return '';
   rows.sort((a,b)=>a.t-b.t);
@@ -386,10 +394,11 @@ function scheduleHtml(open){
   const tomorrow=new Date(now.getTime()+864e5);
   const dayName=d=>dayKey(d)===dayKey(now)?'TODAY':dayKey(d)===dayKey(tomorrow)?'TOMORROW':d.toLocaleDateString([], {weekday:'long'}).toUpperCase();
   const days=[];rows.forEach(r=>{let d=days.find(x=>x.k===dayKey(r.t));if(!d)days.push(d={k:dayKey(r.t),date:r.t,games:[]});
-    let g=d.games.find(x=>x.game===r.game&&+x.t===+r.t);if(!g)d.games.push(g={t:r.t,game:r.game,sport:r.sport,tv:r.tv,link:r.link,venue:r.venue,bets:[]});g.bets.push(r)});
+    let g=d.games.find(x=>x.game===r.game&&+x.t===+r.t);if(!g)d.games.push(g={t:r.t,game:r.game,sport:r.sport,tv:r.tv,link:r.link,venue:r.venue,ev:r.ev,bets:[]});g.bets.push(r)});
   return `<div class="sched">${days.map(d=>`<div class="sday"><div class="sdate"><b>${dayName(d.date)}</b> ${esc(d.date.toLocaleDateString([], {month:'short',day:'numeric'}).toUpperCase())}</div>
-    ${d.games.map(g=>{const key=g.game+'|'+(+g.t),isOpen=openGames.has(key);return `<div class="sgame${isOpen?' open':''}" data-game="${esc(key)}" role="button" tabindex="0" aria-expanded="${isOpen}"><div class="stime">${g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
+    ${d.games.map(g=>{const key=g.game+'|'+(+g.t),isOpen=openGames.has(key);return `<div class="sgame${isOpen?' open':''}" data-game="${esc(key)}" role="button" tabindex="0" aria-expanded="${isOpen}">${(()=>{g.L=g.ev?LIVE[g.ev]:null;return ''})()}<div class="stime">${g.L?`<span class="livetag${g.L.state==='post'?' fin':''}">${g.L.state==='post'?'FINAL':'LIVE'}</span>`:g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
       <div class="sbody"><div class="sg"><b>${esc(g.game)}</b> <span class="q">${esc(g.sport)}</span></div>
+        ${g.L?`<div class="lscore"><b>${esc(g.L.away)} ${g.L.away_score??0}, ${esc(g.L.home)} ${g.L.home_score??0}</b>${g.L.detail?` <span class="q">· ${esc(g.L.detail)}</span>`:''}${g.L.state==='post'?' <span class="q">· settling shortly</span>':''}</div>`:''}
         ${g.bets.map(x=>{const arrow=!x.isLeg&&x.b.move&&x.b.move.direction==='for'?' <span class="up">▲</span>':!x.isLeg&&x.b.move&&x.b.move.direction==='against'?' <span class="down">▼</span>':'';
           const others=x.others.map(o=>`<div class="oleg">${o.leg_result?`<span class="pill ${o.leg_result}">${o.leg_result==='win'?'WON':o.leg_result.toUpperCase()}</span>`:'<span class="pill passed">TO PLAY</span>'} ${esc(o.leg)}
             <span class="q">· ${o.final?esc(o.final):esc(o.game)+' · '+esc(when(o.commence))}</span></div>`).join('');
@@ -397,7 +406,7 @@ function scheduleHtml(open){
           ${others?`<div class="olegs"><b>OTHER LEG${x.others.length>1?'S':''}</b>${others}</div>`:''}
           ${isOpen?`<div class="g q">Picked by ${esc(x.b.agents.join(', '))}${x.b.recommended?' · CEO real-money pick':' · your call'}</div>${x.isLeg?'':moveHtml(x.b)}`:''}</div>`}).join('')}
         ${isOpen?`<div class="watch"><div><b>WATCH</b> ${g.tv?esc(g.tv):'<span class="q">TV channel not announced yet</span>'}${g.venue?` <span class="q">· ${esc(g.venue)}</span>`:''}</div>
-          ${g.link?`<a class="golink" href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">LIVE SCORE ON ESPN ↗</a>`:''}</div>`
+          ${g.link?`<a class="golink" href="${esc(g.link)}" target="lab-espn" rel="noopener noreferrer">FULL GAME ON ESPN ↗</a>`:''}</div>`
           :`<div class="tvhint q">${g.tv?esc(g.tv)+' · ':''}tap for how to watch and odds moves</div>`}</div></div>`}).join('')}</div>`).join('')}</div>`;
 }
 function myBetsView(){
@@ -529,6 +538,7 @@ function show(v){
   view=v;['office','slate','tipsters','ledger','history'].forEach(k=>$('v-'+k).hidden=k!==v);
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   Office.show(v==='office');try{localStorage.setItem('lab-view',v)}catch(e){}
+  if(v==='ledger')loadLive();
 }
 function setMode(m){mode=m;try{localStorage.setItem('lab-mode',m)}catch(e){}render()}
 document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)show(b.dataset.v)});

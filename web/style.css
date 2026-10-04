@@ -107,6 +107,8 @@ a{color:var(--teal)}
 .sg b{font-weight:500;overflow-wrap:anywhere} .sg .q{font-size:11px}
 .sbet{font-size:12px;border-left:3px solid var(--teal);padding-left:8px;overflow-wrap:anywhere}
 .sbet .q{font-size:11px}
+.lscore{font-size:13px;color:var(--amber)} .lscore b{font-weight:500}
+.livetag.fin{background:var(--quiet)}
 .olegs{margin-top:4px;display:grid;gap:3px;font-size:12px}
 .olegs>b{font:9px var(--f-display);letter-spacing:.06em;color:var(--quiet);font-weight:400}
 .oleg .pill{font-size:9px;padding:1px 4px}

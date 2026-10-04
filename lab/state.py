@@ -333,7 +333,7 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
                               "final": final_txt(r["home"], r["away"], r["home_score"], r["away_score"]) if r["status"] == "final" else None}
     for b in bets:
         for g in b["games"]:
-            g.update(watch.get(g.pop("event_id"), {}))
+            g.update(watch.get(g["event_id"], {}))
 
     def tally(items):
         done = [b for b in items if b["status"] != "open"]
