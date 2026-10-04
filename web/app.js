@@ -379,7 +379,7 @@ function moveHtml(b){
 function scheduleHtml(open){
   const rows=[];
   open.forEach(b=>(b.games||[]).forEach(g=>{if(g.leg&&g.leg_result)return;rows.push({t:new Date(g.commence),game:g.game,sport:g.sport,tv:g.tv,link:g.link,venue:g.venue,
-    label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,needs:g.leg?g.needs:b.needs,b,isLeg:!!g.leg,sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
+    label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,needs:g.leg?g.needs:b.needs,b,isLeg:!!g.leg,others:g.leg?b.games.filter(o=>o!==g):[],sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
   if(!rows.length)return '';
   rows.sort((a,b)=>a.t-b.t);
   const now=new Date(),dayKey=d=>d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
@@ -391,7 +391,10 @@ function scheduleHtml(open){
     ${d.games.map(g=>{const key=g.game+'|'+(+g.t),isOpen=openGames.has(key);return `<div class="sgame${isOpen?' open':''}" data-game="${esc(key)}" role="button" tabindex="0" aria-expanded="${isOpen}"><div class="stime">${g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
       <div class="sbody"><div class="sg"><b>${esc(g.game)}</b> <span class="q">${esc(g.sport)}</span></div>
         ${g.bets.map(x=>{const arrow=!x.isLeg&&x.b.move&&x.b.move.direction==='for'?' <span class="up">▲</span>':!x.isLeg&&x.b.move&&x.b.move.direction==='against'?' <span class="down">▼</span>':'';
+          const others=x.others.map(o=>`<div class="oleg">${o.leg_result?`<span class="pill ${o.leg_result}">${o.leg_result==='win'?'WON':o.leg_result.toUpperCase()}</span>`:'<span class="pill passed">TO PLAY</span>'} ${esc(o.leg)}
+            <span class="q">· ${o.final?esc(o.final):esc(o.game)+' · '+esc(when(o.commence))}</span></div>`).join('');
           return `<div class="sbet">${esc(x.label)}${arrow} <span class="q">· ${esc(x.sub)}</span>${x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}
+          ${others?`<div class="olegs"><b>OTHER LEG${x.others.length>1?'S':''}</b>${others}</div>`:''}
           ${isOpen?`<div class="g q">Picked by ${esc(x.b.agents.join(', '))}${x.b.recommended?' · CEO real-money pick':' · your call'}</div>${x.isLeg?'':moveHtml(x.b)}`:''}</div>`}).join('')}
         ${isOpen?`<div class="watch"><div><b>WATCH</b> ${g.tv?esc(g.tv):'<span class="q">TV channel not announced yet</span>'}${g.venue?` <span class="q">· ${esc(g.venue)}</span>`:''}</div>
           ${g.link?`<a class="golink" href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">LIVE SCORE ON ESPN ↗</a>`:''}</div>`

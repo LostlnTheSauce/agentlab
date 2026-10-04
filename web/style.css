@@ -107,6 +107,9 @@ a{color:var(--teal)}
 .sg b{font-weight:500;overflow-wrap:anywhere} .sg .q{font-size:11px}
 .sbet{font-size:12px;border-left:3px solid var(--teal);padding-left:8px;overflow-wrap:anywhere}
 .sbet .q{font-size:11px}
+.olegs{margin-top:4px;display:grid;gap:3px;font-size:12px}
+.olegs>b{font:9px var(--f-display);letter-spacing:.06em;color:var(--quiet);font-weight:400}
+.oleg .pill{font-size:9px;padding:1px 4px}
 .brow{cursor:pointer} .brow.open2{background:var(--raised)}
 .mv{font-size:12px;margin-top:6px;border-left:3px solid var(--amber);padding-left:8px;display:grid;gap:2px}
 .betlist{display:grid;gap:8px;margin-top:8px}
