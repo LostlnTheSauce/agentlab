@@ -11,8 +11,9 @@ import time
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 
+from . import oddsmath as om
 from .db import DB, iso, parse, utcnow
-from .sources.espn import Espn, match_game
+from .sources.espn import Espn, match_game, similarity
 
 TTL = 60
 _lock = threading.Lock()
@@ -31,16 +32,21 @@ def _board(espn: Espn, sport: str, day) -> list[dict]:
     return games
 
 
-def live_scores(db: DB, espn: Espn | None = None) -> dict[str, dict]:
+def live_scores(db: DB, espn: Espn | None = None) -> dict:
+    """{"games": {event_id: score}, "picks": {pick_id: "win"|"loss"|"push"}}: where each open cash bet (and parlay leg)
+    would land if its game ended right now."""
     espn = espn or Espn()
     now = utcnow()
-    ids = set()
-    for r in db.all("SELECT p.event_id, p.legs FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' AND b.result IS NULL"):
-        ids.add(r["event_id"])
-        for leg in json.loads(r["legs"] or "[]"):
-            row = db.one("SELECT event_id FROM picks WHERE id=?", (leg,))
-            if row:
-                ids.add(row["event_id"])
+    picks = {}
+    for r in db.all("SELECT p.* FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' AND b.result IS NULL"):
+        if r["market"] == "parlay":
+            for leg in json.loads(r["legs"] or "[]"):
+                row = db.one("SELECT * FROM picks WHERE id=? AND result IS NULL", (leg,))
+                if row:
+                    picks[row["id"]] = row
+        else:
+            picks[r["id"]] = r
+    ids = {p["event_id"] for p in picks.values()}
     out = {}
     for ev_id in ids:
         ev = db.one("SELECT id, sport, home, away, commence, status, espn_id FROM events WHERE id=?", (ev_id,))
@@ -55,4 +61,16 @@ def live_scores(db: DB, espn: Espn | None = None) -> dict[str, dict]:
             continue
         out[ev_id] = {"state": g["state"], "detail": g.get("detail"), "home": g["home"], "away": g["away"],
                       "home_score": g.get("home_score"), "away_score": g.get("away_score"), "at": iso(now)}
-    return out
+    status = {}
+    for p in picks.values():
+        g = out.get(p["event_id"])
+        if not g or p["player"] or g["home_score"] is None or g["away_score"] is None:
+            continue
+        hs, aws = g["home_score"], g["away_score"]
+        if similarity(p["home"], g["away"]) > similarity(p["home"], g["home"]):  # ESPN can flip home/away at neutral sites
+            hs, aws = aws, hs
+        try:
+            status[p["id"]] = om.grade(p["market"], p["selection"], p["point"], p["home"], p["away"], hs, aws, p["sport"])
+        except ValueError:
+            continue
+    return {"games": out, "picks": status}

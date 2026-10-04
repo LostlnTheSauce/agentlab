@@ -31,11 +31,11 @@ async function load(){
 }
 setInterval(load,30000);
 /* live scores for games you have money on, only while MY BETS is open */
-let LIVE={},liveBusy=false,liveAt=0;
+let LIVE={games:{},picks:{}},liveBusy=false,liveAt=0;
 async function loadLive(){
   if(view!=='ledger'||document.hidden||liveBusy||!S||Date.now()-liveAt<50000)return;
   if(!S.mine.bets.some(b=>b.status==='open'&&(b.games||[]).some(g=>new Date(g.commence)<=Date.now()+6e5)))return;
-  liveBusy=true;liveAt=Date.now();try{LIVE=await api('api/live');myBetsView()}catch(e){}finally{liveBusy=false}
+  liveBusy=true;liveAt=Date.now();try{const L=await api('api/live');LIVE={games:L.games||{},picks:L.picks||{}};myBetsView()}catch(e){}finally{liveBusy=false}
 }
 setInterval(loadLive,60000);document.addEventListener('visibilitychange',loadLive);
 setInterval(()=>{if(!S)return;const busy=S.runs.some(r=>r.status==='running');$('live').className='live'+(busy?' busy':'')+(Date.now()-fetchedAt>90000?' stale':'');
@@ -387,7 +387,7 @@ function moveHtml(b){
 function scheduleHtml(open){
   const rows=[];
   open.forEach(b=>(b.games||[]).forEach(g=>{if(g.leg&&g.leg_result)return;rows.push({t:new Date(g.commence),game:g.game,sport:g.sport,tv:g.tv,link:g.link,venue:g.venue,ev:g.event_id,
-    label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,needs:g.leg?g.needs:b.needs,b,isLeg:!!g.leg,others:g.leg?b.games.filter(o=>o!==g):[],sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
+    label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,needs:g.leg?g.needs:b.needs,b,isLeg:!!g.leg,pid:g.pick_id,others:g.leg?b.games.filter(o=>o!==g):[],sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
   if(!rows.length)return '';
   rows.sort((a,b)=>a.t-b.t);
   const now=new Date(),dayKey=d=>d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
@@ -396,18 +396,35 @@ function scheduleHtml(open){
   const days=[];rows.forEach(r=>{let d=days.find(x=>x.k===dayKey(r.t));if(!d)days.push(d={k:dayKey(r.t),date:r.t,games:[]});
     let g=d.games.find(x=>x.game===r.game&&+x.t===+r.t);if(!g)d.games.push(g={t:r.t,game:r.game,sport:r.sport,tv:r.tv,link:r.link,venue:r.venue,ev:r.ev,bets:[]});g.bets.push(r)});
   return `<div class="sched">${days.map(d=>`<div class="sday"><div class="sdate"><b>${dayName(d.date)}</b> ${esc(d.date.toLocaleDateString([], {month:'short',day:'numeric'}).toUpperCase())}</div>
-    ${d.games.map(g=>{const key=g.game+'|'+(+g.t),isOpen=openGames.has(key);return `<div class="sgame${isOpen?' open':''}" data-game="${esc(key)}" role="button" tabindex="0" aria-expanded="${isOpen}">${(()=>{g.L=g.ev?LIVE[g.ev]:null;return ''})()}<div class="stime">${g.L?`<span class="livetag${g.L.state==='post'?' fin':''}">${g.L.state==='post'?'FINAL':'LIVE'}</span>`:g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
+    ${d.games.map(g=>{const key=g.game+'|'+(+g.t),isOpen=openGames.has(key);return `<div class="sgame${isOpen?' open':''}" data-game="${esc(key)}" role="button" tabindex="0" aria-expanded="${isOpen}">${(()=>{g.L=g.ev?LIVE.games[g.ev]:null;return ''})()}<div class="stime">${g.L?`<span class="livetag${g.L.state==='post'?' fin':''}">${g.L.state==='post'?'FINAL':'LIVE'}</span>`:g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
       <div class="sbody"><div class="sg"><b>${esc(g.game)}</b> <span class="q">${esc(g.sport)}</span></div>
         ${g.L?`<div class="lscore"><b>${esc(g.L.away)} ${g.L.away_score??0}, ${esc(g.L.home)} ${g.L.home_score??0}</b>${g.L.detail?` <span class="q">· ${esc(g.L.detail)}</span>`:''}${g.L.state==='post'?' <span class="q">· settling shortly</span>':''}</div>`:''}
         ${g.bets.map(x=>{const arrow=!x.isLeg&&x.b.move&&x.b.move.direction==='for'?' <span class="up">▲</span>':!x.isLeg&&x.b.move&&x.b.move.direction==='against'?' <span class="down">▼</span>':'';
-          const others=x.others.map(o=>`<div class="oleg">${o.leg_result?`<span class="pill ${o.leg_result}">${o.leg_result==='win'?'WON':o.leg_result.toUpperCase()}</span>`:'<span class="pill passed">TO PLAY</span>'} ${esc(o.leg)}
-            <span class="q">· ${o.final?esc(o.final):esc(o.game)+' · '+esc(when(o.commence))}</span></div>`).join('');
-          return `<div class="sbet">${esc(x.label)}${arrow} <span class="q">· ${esc(x.sub)}</span>${x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}
+          const others=x.others.map(o=>{const lv=LIVE.picks[o.pick_id];return `<div class="oleg">${o.leg_result?`<span class="pill ${o.leg_result}">${o.leg_result==='win'?'WON':o.leg_result.toUpperCase()}</span>`:lv?`<span class="inmoney ${lv}">${lv==='win'?'WINNING':lv==='loss'?'LOSING':'PUSH'}</span>`:'<span class="pill passed">TO PLAY</span>'} ${esc(o.leg)}
+            <span class="q">· ${o.final?esc(o.final):esc(o.game)+' · '+esc(when(o.commence))}</span></div>`}).join('');
+          const now2=LIVE.picks[x.pid],fin=g.L&&g.L.state==='post';
+          const badge=now2?`<span class="inmoney ${now2}">${now2==='win'?(fin?'WON':'WINNING'):now2==='loss'?(fin?'LOST':'LOSING'):'PUSH'}</span> `:'';
+          return `<div class="sbet ${now2?'st-'+now2:''}">${badge}${esc(x.label)}${arrow} <span class="q">· ${esc(x.sub)}</span>${x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}
           ${others?`<div class="olegs"><b>OTHER LEG${x.others.length>1?'S':''}</b>${others}</div>`:''}
           ${isOpen?`<div class="g q">Picked by ${esc(x.b.agents.join(', '))}${x.b.recommended?' · CEO real-money pick':' · your call'}</div>${x.isLeg?'':moveHtml(x.b)}`:''}</div>`}).join('')}
         ${isOpen?`<div class="watch"><div><b>WATCH</b> ${g.tv?esc(g.tv):'<span class="q">TV channel not announced yet</span>'}${g.venue?` <span class="q">· ${esc(g.venue)}</span>`:''}</div>
           ${g.link?`<a class="golink" href="${esc(g.link)}" target="lab-espn" rel="noopener noreferrer">FULL GAME ON ESPN ↗</a>`:''}</div>`
           :`<div class="tvhint q">${g.tv?esc(g.tv)+' · ':''}tap for how to watch and odds moves</div>`}</div></div>`}).join('')}</div>`).join('')}</div>`;
+}
+/* one line: how your live bets stand right now (a parlay counts by its legs: any losing leg = losing) */
+function glance(){
+  const st={win:0,loss:0,push:0};let net=0;
+  S.mine.bets.filter(b=>b.status==='open').forEach(b=>{
+    const legs=(b.games||[]).filter(g=>!g.leg_result||g.leg_result==='loss');
+    const now=(b.games||[]).map(g=>g.leg_result==='loss'?'loss':LIVE.picks[g.pick_id]).filter(Boolean);
+    if(!now.length)return;
+    const s=now.includes('loss')?'loss':now.includes('push')&&!b.games.some(g=>g.leg)?'push':'win';
+    if(b.games.some(g=>g.leg)&&s==='win'&&now.length<legs.length)return; // parlay with legs still to play: not judged yet
+    st[s]++;net+=s==='win'?b.to_win:s==='loss'?-b.stake:0;
+  });
+  const n=st.win+st.loss+st.push;if(!n)return '';
+  return `<div class="glance"><b>LIVE NOW</b> ${st.win?`<span class="up">${st.win} winning</span>`:''}${st.win&&(st.loss||st.push)?' · ':''}${st.loss?`<span class="down">${st.loss} losing</span>`:''}${st.loss&&st.push?' · ':''}${st.push?`<span class="q">${st.push} push</span>`:''}
+    <span class="q">· if they all ended now:</span> <span class="${cls(net)}">${money(net,true)}</span></div>`;
 }
 function myBetsView(){
   const M=S.mine,A=M.all,box=$('myBets');
@@ -419,6 +436,7 @@ function myBetsView(){
       <div><b>TO WIN</b><span class="up">${money(A.open_to_win||0)}</span></div>
       <button class="tohist" data-goto="history"><b>ALL-TIME</b><span class="${cls(A.profit)}">${A.settled?money(A.profit,true):'—'}</span><i>HISTORY ›</i></button>
     </div>
+    ${glance()}
     ${sched?`<div class="h2">COMING UP <span class="q" style="font:11px var(--f-body);letter-spacing:0">· tap a game for how to watch and odds moves</span></div>${sched}`
       :`<div class="empty">${M.bets.length?'Nothing riding right now. Finished bets are in HISTORY.':'No real bets yet. Tap BET on a pick in the Slate tab, place it on your sportsbook, then tap I PLACED IT, and it shows up here.'}</div>`}`;
   box.querySelector('[data-goto]').onclick=()=>show('history');

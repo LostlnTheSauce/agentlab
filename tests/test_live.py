@@ -36,8 +36,9 @@ class LiveScores(unittest.TestCase):
                       "state": "in", "detail": "Top 7th", "home_score": 0.0, "away_score": 1.0}]
             espn = FakeEspn(games)
             out = live.live_scores(db, espn)
-            self.assertEqual(list(out), ["today"])  # the later game hasn't started
-            self.assertEqual(out["today"]["detail"], "Top 7th")  # today's game, not yesterday's final
+            self.assertEqual(list(out["games"]), ["today"])  # the later game hasn't started
+            self.assertEqual(out["games"]["today"]["detail"], "Top 7th")  # today's game, not yesterday's final
+            self.assertEqual(out["picks"], {"ptoday": "loss"})  # Brewers moneyline, down 1-0 right now
             live.live_scores(db, espn)
             self.assertEqual(espn.calls, 1)  # second call within a minute is cached
 

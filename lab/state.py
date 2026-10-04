@@ -294,7 +294,7 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
                 "agents": [], "recommended": False, "ceo_rank": None, "clv": r["clv"],
                 "placed_day": parse(r["placed_at"]).astimezone(tz).date().isoformat(),
                 "needs": needs(r["market"], r["selection"], r["point"], r["sport"], r.get("player")),
-                "games": [{"game": f"{r['away']} @ {r['home']}", "commence": r["commence"], "sport": short(r["sport"]), "leg": None, "event_id": r["event_id"]}],
+                "games": [{"game": f"{r['away']} @ {r['home']}", "commence": r["commence"], "sport": short(r["sport"]), "leg": None, "event_id": r["event_id"], "pick_id": r["pick_id"]}],
                 "_legs": json.loads(r["legs"]) if r["market"] == "parlay" and r["legs"] else None,
                 "_key": (r["event_id"], r["market"], r["selection"], r["point"]), "_close": (r["close_price"], r["close_fair"]),
             }
@@ -310,11 +310,11 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
     for b in bets:
         leg_ids = b.pop("_legs", None)
         if leg_ids:
-            legs = db.all("SELECT event_id, home, away, commence, sport, market, selection, point, player, price, result FROM picks WHERE id IN (%s) ORDER BY commence"
+            legs = db.all("SELECT id, event_id, home, away, commence, sport, market, selection, point, player, price, result FROM picks WHERE id IN (%s) ORDER BY commence"
                           % ",".join("?" * len(leg_ids)), leg_ids)
             if legs:
                 b["games"] = [{"game": f"{l['away']} @ {l['home']}", "commence": l["commence"], "sport": short(l["sport"]),
-                               "leg": describe(l).rsplit(" ", 1)[0], "leg_result": l["result"], "event_id": l["event_id"],
+                               "leg": describe(l).rsplit(" ", 1)[0], "leg_result": l["result"], "event_id": l["event_id"], "pick_id": l["id"],
                                "needs": needs(l["market"], l["selection"], l["point"], l["sport"], l.get("player"))} for l in legs]
         b["stake"], b["profit"] = round(b["stake"], 2), round(b["profit"], 2)
         b["to_win"] = round(b["stake"] * (om.dec(b["price"]) - 1), 2)

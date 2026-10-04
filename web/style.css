@@ -108,6 +108,13 @@ a{color:var(--teal)}
 .sbet{font-size:12px;border-left:3px solid var(--teal);padding-left:8px;overflow-wrap:anywhere}
 .sbet .q{font-size:11px}
 .lscore{font-size:13px;color:var(--amber)} .lscore b{font-weight:500}
+.inmoney{font:9px var(--f-display);letter-spacing:.06em;padding:1px 5px;border:1px solid;white-space:nowrap}
+.inmoney.win{color:#062019;background:var(--win);border-color:var(--win)}
+.inmoney.loss{color:var(--loss);border-color:#7a3b35}
+.inmoney.push{color:var(--quiet);border-color:var(--line)}
+.sbet.st-win{border-left-color:var(--win)} .sbet.st-loss{border-left-color:var(--loss)}
+.glance{margin-top:10px;border:2px solid var(--line);background:var(--surface);padding:8px 10px;font-size:13px}
+.glance>b{font:10px var(--f-display);letter-spacing:.08em;color:var(--loss);font-weight:400;margin-right:6px}
 .livetag.fin{background:var(--quiet)}
 .olegs{margin-top:4px;display:grid;gap:3px;font-size:12px}
 .olegs>b{font:9px var(--f-display);letter-spacing:.06em;color:var(--quiet);font-weight:400}
