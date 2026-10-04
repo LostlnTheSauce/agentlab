@@ -98,11 +98,13 @@ def build_state(settings, db: DB) -> dict:
     seeded = settings.wallet_dollars * len(everyone)  # every hire comes with a fresh wallet
 
     def equity(kind):
-        rows = db.all("SELECT substr(settled_at,1,10) d, SUM(profit_cents) pr FROM bets WHERE kind=? AND result IS NOT NULL GROUP BY d ORDER BY d", (kind,))
+        # running profit after each settled bet, in game-time order (merged tipster shares count as one bet)
+        rows = db.all("SELECT MIN(p.commence) t, SUM(b.profit_cents) pr FROM bets b JOIN picks p ON p.id=b.pick_id "
+                      "WHERE b.kind=? AND b.result IS NOT NULL GROUP BY b.placed_at, COALESCE(p.group_id, p.id) ORDER BY t, MIN(b.id)", (kind,))
         run, out = 0, []
         for r in rows:
-            run += r["pr"]
-            out.append({"d": r["d"], "v": run / 100})
+            run += r["pr"] or 0
+            out.append({"t": r["t"], "v": round(run / 100, 2)})
         return out
 
     breakdown = splits(db, settings)

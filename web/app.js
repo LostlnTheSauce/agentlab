@@ -463,17 +463,22 @@ function historyView(){
 
 /* ---------------------------------------------------------------- ledger */
 function ledgerView(){
-  const svg=$('eq'),P=S.paper.equity,R=S.real.equity,days=[...new Set([...P,...R].map(e=>e.d))].sort();
+  /* your cash only: one step per settled bet in game order, starting from $0 */
+  const svg=$('eq'),R=(S.real.equity||[]).filter(e=>e.t);
   let g='';
-  if(days.length<2){g=`<text x="160" y="80" text-anchor="middle" fill="#94aba1" font-family="VT323" font-size="16">Chart appears after two days of results</text>`}
+  if(!R.length){g=`<text x="160" y="80" text-anchor="middle" fill="#94aba1" font-family="VT323" font-size="16">Chart starts after your first cash bet settles</text>`}
   else{
-    const vals=[0,...P.map(e=>e.v),...R.map(e=>e.v)],mn=Math.min(...vals),mx=Math.max(...vals),span=(mx-mn)||1;
-    const x=d=>40+days.indexOf(d)*(272/(days.length-1)),y=v=>140-(v-mn)/span*124;
-    [mn,0,mx].forEach(v=>{g+=`<line x1="40" x2="312" y1="${y(v)}" y2="${y(v)}" stroke="${v===0?'#94aba1':'#1b3634'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="36" y="${y(v)+4}" text-anchor="end" fill="#94aba1" font-family="VT323" font-size="13">${money(v,true)}</text>`});
-    const line=(s,c)=>{if(!s.length)return;const pts=s.map(e=>x(e.d)+','+y(e.v)).join(' ');const e=s[s.length-1];
-      g+=`<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2"/><rect x="${x(e.d)-3}" y="${y(e.v)-3}" width="6" height="6" fill="${c}"/>`};
-    line(P,'#c7f78c');line(R,'#f0c281');
-    g+=`<text x="40" y="156" fill="#94aba1" font-family="VT323" font-size="13">${days[0].slice(5)}</text><text x="312" y="156" text-anchor="end" fill="#94aba1" font-family="VT323" font-size="13">${days[days.length-1].slice(5)}</text>`;
+    const pts=[0,...R.map(e=>e.v)],n=pts.length-1;
+    const mn=Math.min(0,...pts),mx=Math.max(0,...pts),span=(mx-mn)||1;
+    const x=i=>44+i/n*228,y=v=>132-(v-mn)/span*112;
+    [...new Set([mn,0,mx].map(v=>Math.round(v*100)/100))].forEach(v=>{g+=`<line x1="44" x2="272" y1="${y(v)}" y2="${y(v)}" stroke="${v===0?'#94aba1':'#1b3634'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="40" y="${y(v)+4}" text-anchor="end" fill="#94aba1" font-family="VT323" font-size="13">${money(v,true)}</text>`});
+    let d=`M${x(0)},${y(0)}`;pts.slice(1).forEach((v,i)=>{d+=` H${x(i+1)} V${y(v)}`});
+    const last=pts[n],col=last>=0?'#7ee0a5':'#f07f6e';
+    g+=`<path d="${d}" fill="none" stroke="#f0c281" stroke-width="2"/>`;
+    if(n<=40)pts.slice(1).forEach((v,i)=>{g+=`<rect x="${x(i+1)-2}" y="${y(v)-2}" width="4" height="4" fill="#f0c281"/>`});
+    g+=`<text x="${x(n)+4}" y="${y(last)+5}" fill="${col}" font-family="VT323" font-size="16">${money(last,true)}</text>`;
+    const lbl=t=>new Date(t).toLocaleDateString([], {month:'short',day:'numeric'});
+    g+=`<text x="44" y="152" fill="#94aba1" font-family="VT323" font-size="13">${lbl(R[0].t)}</text><text x="272" y="152" text-anchor="end" fill="#94aba1" font-family="VT323" font-size="13">${lbl(R[n-1].t)} · ${n} bet${n===1?'':'s'}</text>`;
   }
   svg.innerHTML=g;
   myBetsView();historyView();
