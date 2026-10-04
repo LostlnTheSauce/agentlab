@@ -109,7 +109,22 @@ a{color:var(--teal)}
 .sbet .q{font-size:11px}
 .brow{cursor:pointer} .brow.open2{background:var(--raised)}
 .mv{font-size:12px;margin-top:6px;border-left:3px solid var(--amber);padding-left:8px;display:grid;gap:2px}
-.betlist{display:grid;gap:8px;margin-top:10px}
+.betlist{display:grid;gap:8px;margin-top:8px}
+.riding{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.riding>div,.riding>button{border:2px solid var(--line);background:var(--surface);padding:6px 8px;display:grid;text-align:left;min-width:0}
+.riding b{font:9px var(--f-display);letter-spacing:.06em;color:var(--quiet);font-weight:400}
+.riding span{font:22px/1.1 var(--f-data)}
+.riding .tohist{border-color:var(--amber);cursor:pointer;color:inherit}
+.riding .tohist i{font:9px var(--f-display);font-style:normal;letter-spacing:.06em;color:var(--amber)}
+@media (max-width:520px){.riding{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.hday{display:flex;justify-content:space-between;font:11px var(--f-display);letter-spacing:.08em;color:var(--quiet);margin:16px 0 0;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.hday span:first-child{color:var(--lime)}
+.brow .more{display:grid;gap:4px;margin-top:6px}
+.brow .leg{font-size:12px;border-left:3px solid var(--teal);padding-left:8px}
+.brow .leg .pill{font-size:9px;padding:1px 4px}
+.bts{margin-top:22px}
+.bts summary{font:12px var(--f-display);letter-spacing:.08em;color:var(--quiet);cursor:pointer;padding:8px 0}
+.bts[open] summary{margin-bottom:8px}
 .brow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;border:2px solid var(--line);background:var(--surface);padding:8px 10px}
 .brow.won{border-color:#2f6b49} .brow.lost{border-color:#7a3b35} .brow.open{border-color:var(--line)}
 .brow .st{font:10px var(--f-display);letter-spacing:.06em;padding:3px 6px;border:1px solid;min-width:52px;text-align:center}
@@ -209,7 +224,7 @@ dialog input{background:var(--bg);border:2px solid var(--line);padding:8px;font:
 .toggle{font:11px var(--f-display);padding:6px 9px;border:2px solid var(--line);background:var(--raised)} .toggle.on{border-color:var(--lime);color:var(--lime)}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
 .warn{font-size:12px;color:var(--loss);min-height:1.2em}
-.win{font:20px var(--f-data);color:var(--win);min-height:1.2em}
+#placeWin{font:20px var(--f-data);color:var(--win);min-height:1.2em}
 .betline{font-size:13px;margin:0;background:var(--bg);border:1px solid var(--line);padding:6px 8px}
 
 /* table */
@@ -252,7 +267,7 @@ td.n{font:19px var(--f-data)}
 .ticker{overflow:hidden;white-space:nowrap;border-bottom:1px solid var(--line);font:16px var(--f-data);color:var(--quiet);padding:3px 0}
 .ticker span{display:inline-block;padding-left:100%;animation:tick 120s linear infinite}
 @keyframes tick{to{transform:translateX(-100%)}}
-nav{display:grid;grid-template-columns:repeat(4,1fr);max-width:1100px;margin:0 auto}
+nav{display:grid;grid-template-columns:repeat(5,1fr);max-width:1100px;margin:0 auto}
 nav button{display:grid;justify-items:center;gap:3px;padding:8px 4px 10px;font:11px var(--f-display);letter-spacing:.06em;color:var(--quiet);border-bottom:3px solid transparent}
 nav button svg{width:24px;height:24px}
 nav button.on{color:var(--lime);border-bottom-color:var(--lime)}

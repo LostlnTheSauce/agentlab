@@ -57,7 +57,8 @@ def fmt(american: int | None) -> str:
     return f"+{american}" if american > 0 else str(american)
 
 
-def grade(market: str, selection: str, point: float | None, home: str, away: str, home_score: float, away_score: float) -> str:
+def grade(market: str, selection: str, point: float | None, home: str, away: str, home_score: float, away_score: float,
+          sport: str = "") -> str:
     """Grade a full-game single. Returns win / loss / push."""
     if market == "h2h":
         if selection == "Draw":
@@ -65,7 +66,8 @@ def grade(market: str, selection: str, point: float | None, home: str, away: str
         mine, theirs = (home_score, away_score) if selection == home else (away_score, home_score)
         if selection not in (home, away):
             raise ValueError(f"Selection {selection!r} is not a team in this game")
-        return "win" if mine > theirs else "loss" if mine < theirs else "push"
+        tie = "loss" if sport.startswith("soccer_") else "push"  # soccer moneylines are 3-way: a draw loses
+        return "win" if mine > theirs else "loss" if mine < theirs else tie
     if market == "spreads":
         if selection not in (home, away) or point is None:
             raise ValueError("Spread needs a team and a point")

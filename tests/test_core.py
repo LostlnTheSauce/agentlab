@@ -56,6 +56,8 @@ class OddsMath(unittest.TestCase):
         self.assertEqual(g("h2h", "Home", None, "Home", "Away", 21, 17), "win")
         self.assertEqual(g("h2h", "Away", None, "Home", "Away", 21, 17), "loss")
         self.assertEqual(g("h2h", "Draw", None, "Home", "Away", 1, 1), "win")
+        self.assertEqual(g("h2h", "Home", None, "Home", "Away", 1, 1, "soccer_epl"), "loss")
+        self.assertEqual(g("h2h", "Home", None, "Home", "Away", 20, 20, "americanfootball_nfl"), "push")
         self.assertEqual(g("spreads", "Home", -3.5, "Home", "Away", 21, 17), "win")
         self.assertEqual(g("spreads", "Home", -3.0, "Home", "Away", 20, 17), "push")
         self.assertEqual(g("spreads", "Away", 3.5, "Home", "Away", 20, 17), "win")

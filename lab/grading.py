@@ -55,7 +55,7 @@ def grade_pending(db: DB, espn: Espn | None = None, now: datetime | None = None)
             result = om.grade_prop(p["selection"], p["point"], actual)
         else:
             try:
-                result = om.grade(p["market"], p["selection"], p["point"], p["home"], p["away"], game["home_score"], game["away_score"])
+                result = om.grade(p["market"], p["selection"], p["point"], p["home"], p["away"], game["home_score"], game["away_score"], p["sport"])
             except ValueError:
                 continue
         close_price, close_fair = (None, None) if p["player"] else closing(db, p)

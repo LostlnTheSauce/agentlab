@@ -379,7 +379,7 @@ function moveHtml(b){
 function scheduleHtml(open){
   const rows=[];
   open.forEach(b=>(b.games||[]).forEach(g=>{if(g.leg&&g.leg_result)return;rows.push({t:new Date(g.commence),game:g.game,sport:g.sport,tv:g.tv,link:g.link,venue:g.venue,
-    label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,needs:g.leg?g.needs:b.needs,sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
+    label:g.leg?`Parlay leg: ${g.leg}`:`${b.bet} ${b.price_txt}`,needs:g.leg?g.needs:b.needs,b,isLeg:!!g.leg,sub:g.leg?`${b.book} · ${money(b.stake)} parlay to win ${money(b.to_win)}`:`${b.book} · ${money(b.stake)} to win ${money(b.to_win)}`})}));
   if(!rows.length)return '';
   rows.sort((a,b)=>a.t-b.t);
   const now=new Date(),dayKey=d=>d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
@@ -387,57 +387,78 @@ function scheduleHtml(open){
   const dayName=d=>dayKey(d)===dayKey(now)?'TODAY':dayKey(d)===dayKey(tomorrow)?'TOMORROW':d.toLocaleDateString([], {weekday:'long'}).toUpperCase();
   const days=[];rows.forEach(r=>{let d=days.find(x=>x.k===dayKey(r.t));if(!d)days.push(d={k:dayKey(r.t),date:r.t,games:[]});
     let g=d.games.find(x=>x.game===r.game&&+x.t===+r.t);if(!g)d.games.push(g={t:r.t,game:r.game,sport:r.sport,tv:r.tv,link:r.link,venue:r.venue,bets:[]});g.bets.push(r)});
-  return `<div class="h2">COMING UP</div><div class="sched">${days.map(d=>`<div class="sday"><div class="sdate"><b>${dayName(d.date)}</b> ${esc(d.date.toLocaleDateString([], {month:'short',day:'numeric'}).toUpperCase())}</div>
+  return `<div class="sched">${days.map(d=>`<div class="sday"><div class="sdate"><b>${dayName(d.date)}</b> ${esc(d.date.toLocaleDateString([], {month:'short',day:'numeric'}).toUpperCase())}</div>
     ${d.games.map(g=>{const key=g.game+'|'+(+g.t),isOpen=openGames.has(key);return `<div class="sgame${isOpen?' open':''}" data-game="${esc(key)}" role="button" tabindex="0" aria-expanded="${isOpen}"><div class="stime">${g.t<now?`<span class="livetag">${now-g.t<4*36e5?'LIVE':'ENDED'}</span>`:esc(g.t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}</div>
       <div class="sbody"><div class="sg"><b>${esc(g.game)}</b> <span class="q">${esc(g.sport)}</span></div>
-        ${g.bets.map(x=>`<div class="sbet">${esc(x.label)} <span class="q">· ${esc(x.sub)}</span>${x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}</div>`).join('')}
+        ${g.bets.map(x=>{const arrow=!x.isLeg&&x.b.move&&x.b.move.direction==='for'?' <span class="up">▲</span>':!x.isLeg&&x.b.move&&x.b.move.direction==='against'?' <span class="down">▼</span>':'';
+          return `<div class="sbet">${esc(x.label)}${arrow} <span class="q">· ${esc(x.sub)}</span>${x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}
+          ${isOpen?`<div class="g q">Picked by ${esc(x.b.agents.join(', '))}${x.b.recommended?' · CEO real-money pick':' · your call'}</div>${x.isLeg?'':moveHtml(x.b)}`:''}</div>`}).join('')}
         ${isOpen?`<div class="watch"><div><b>WATCH</b> ${g.tv?esc(g.tv):'<span class="q">TV channel not announced yet</span>'}${g.venue?` <span class="q">· ${esc(g.venue)}</span>`:''}</div>
           ${g.link?`<a class="golink" href="${esc(g.link)}" target="_blank" rel="noopener noreferrer">LIVE SCORE ON ESPN ↗</a>`:''}</div>`
-          :`<div class="tvhint q">${g.tv?esc(g.tv)+' · ':''}tap for how to watch</div>`}</div></div>`}).join('')}</div>`).join('')}</div>`;
+          :`<div class="tvhint q">${g.tv?esc(g.tv)+' · ':''}tap for how to watch and odds moves</div>`}</div></div>`}).join('')}</div>`).join('')}</div>`;
 }
 function myBetsView(){
   const M=S.mine,A=M.all,box=$('myBets');
-  if(!M.bets.length){box.innerHTML='<div class="empty">No real bets yet. Tap BET on a pick in the Slate tab, place it on your sportsbook, then tap I PLACED IT, and it shows up here.</div>';return}
-  const rec=(t,label,c)=>`<div class="${c}"><b>${label}:</b> ${t.n} bet${t.n===1?'':'s'}${t.settled?` · ${t.w}–${t.l}${t.p?'–'+t.p:''} · <span class="${cls(t.profit)}">${money(t.profit,true)}</span>`:''}${t.open?` · ${t.open} open`:''}</div>`;
+  const open=M.bets.filter(b=>b.status==='open');
+  const sched=scheduleHtml(open);
+  box.innerHTML=`<div class="riding">
+      <div><b>OPEN</b><span>${A.open}</span></div>
+      <div><b>RIDING</b><span>${money(A.open_stake)}</span></div>
+      <div><b>TO WIN</b><span class="up">${money(A.open_to_win||0)}</span></div>
+      <button class="tohist" data-goto="history"><b>ALL-TIME</b><span class="${cls(A.profit)}">${A.settled?money(A.profit,true):'—'}</span><i>HISTORY ›</i></button>
+    </div>
+    ${sched?`<div class="h2">COMING UP <span class="q" style="font:11px var(--f-body);letter-spacing:0">· tap a game for how to watch and odds moves</span></div>${sched}`
+      :`<div class="empty">${M.bets.length?'Nothing riding right now. Finished bets are in HISTORY.':'No real bets yet. Tap BET on a pick in the Slate tab, place it on your sportsbook, then tap I PLACED IT, and it shows up here.'}</div>`}`;
+  box.querySelector('[data-goto]').onclick=()=>show('history');
+  box.querySelectorAll('.sgame').forEach(x=>{const tog=e=>{if(e.target.closest('a'))return;const k=x.dataset.game;openGames.has(k)?openGames.delete(k):openGames.add(k);myBetsView()};
+    x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog(e)}}});
+}
+
+/* ---------------------------------------------------------------- history */
+function historyView(){
+  const M=S.mine,A=M.all,box=$('history');
+  const done=M.bets.filter(b=>b.status!=='open');
+  if(!done.length){box.innerHTML='<div class="empty">No finished bets yet. Once a game ends, the bet lands here with the final score.</div>';return}
+  const rec=(t,label,c)=>`<div class="${c}"><b>${label}:</b> ${t.settled?`${t.w}–${t.l}${t.p?'–'+t.p:''} · <span class="${cls(t.profit)}">${money(t.profit,true)}</span>`:'nothing settled yet'}</div>`;
   const rate=A.w+A.l?Math.round(A.w/(A.w+A.l)*100)+'%':'—';
-  const sched=scheduleHtml(M.bets.filter(b=>b.status==='open'));
-  const F=[['all','ALL',M.bets.length],['open','OPEN',A.open],['won','WON',A.w],['lost','LOST',A.l]];
+  const F=[['all','ALL',done.length],['won','WON',A.w],['lost','LOST',A.l]];
   if(A.p)F.push(['push','PUSH',A.p]);
-  const list=M.bets.filter(b=>betFilter==='all'||b.status===betFilter);
+  if(betFilter==='open'||!F.some(f=>f[0]===betFilter))betFilter='all';
+  const list=done.filter(b=>betFilter==='all'||b.status===betFilter).sort((x,y)=>new Date(y.commence)-new Date(x.commence));
+  const dayKey=b=>new Date(b.commence).toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'}).toUpperCase();
+  const days=[];list.forEach(b=>{const k=dayKey(b);let d=days.find(x=>x.k===k);if(!d)days.push(d={k,bets:[],net:0});d.bets.push(b);d.net+=b.profit||0});
+  const row=b=>{
+    const bkey=b.id+'|'+b.placed_at,isOpen=openBets.has(bkey);
+    const amt=b.status==='push'?`$0.00<small>PUSH</small>`:`<span class="${cls(b.profit)}">${money(b.profit,true)}</span><small>${b.status==='won'?'WON':'LOST'}</small>`;
+    const finals=(b.games||[]).filter(g=>g.final);
+    const legs=(b.games||[]).filter(g=>g.leg);
+    const short=legs.length?`${legs.filter(g=>g.leg_result==='win').length} of ${legs.length} legs won`:finals[0]?finals[0].final:'';
+    const clv=b.clv!=null?` · CLV <span class="${cls(b.clv)}">${pct(b.clv)}</span>`:'';
+    return `<div class="brow ${b.status}${isOpen?' open2':''}" data-bet="${esc(bkey)}" role="button" tabindex="0" aria-expanded="${isOpen}"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
+      <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>
+        ${short?`<div class="${legs.length?'g':'final'}">${esc(short)}</div>`:''}
+        ${isOpen?`<div class="more">
+          <div class="g">${esc(b.book)} · ${money(b.stake)}${legs.length?'':` · ${esc(b.game)} · ${esc(when(b.commence))}`}</div>
+          ${legs.map(g=>`<div class="leg"><span class="pill ${g.leg_result||'passed'}">${(g.leg_result||'open').toUpperCase()}</span> ${esc(g.leg)}${g.final?`<div class="final">${esc(g.final)}</div>`:''}</div>`).join('')}
+          <div class="g">Picked by ${esc(b.agents.join(', '))}${b.recommended?' · CEO real-money pick':' · your call'}${clv}</div>
+          ${b.move?moveHtml(b):''}</div>`:''}</div>
+      <div class="amt">${amt}</div></div>`};
   box.innerHTML=`<div class="score">
       <div class="top"><span class="pl ${cls(A.profit)}">${money(A.profit,true)}</span><span class="sub">on ${money(A.staked)} settled${A.roi!=null?' · '+pct(A.roi)+' return':''}</span></div>
       <div class="tiles">
-        <div class="tile"><b>OPEN</b><span>${A.open}</span></div>
-        <div class="tile"><b>SETTLED</b><span>${A.settled}</span></div>
         <div class="tile"><b>WON</b><span class="up">${A.w}</span></div>
         <div class="tile"><b>LOST</b><span class="down">${A.l}</span></div>
         <div class="tile"><b>WIN RATE</b><span>${rate}</span></div>
-        <div class="tile"><b>RIDING</b><span>${money(A.open_stake)}</span></div>
       </div>
-      <div class="split">${rec(M.ceo,'CEO recommended','ceo')}${rec(M.mine,'Your calls','own')}</div>
+      <div class="split">${rec(M.ceo,'CEO picks','ceo')}${rec(M.mine,'Your calls','own')}</div>
     </div>
-    ${sched}
-    <div class="h2">ALL MY BETS <span class="q" style="font:11px var(--f-body);letter-spacing:0">· tap a bet to see how its odds have moved</span></div>
     <div class="filters">${F.map(([k,l,n])=>`<button data-bf="${k}" class="${betFilter===k?'on':''}">${l} ${n}</button>`).join('')}</div>
-    <div class="betlist">${list.map(b=>{
-      const amt=b.status==='open'?`${money(b.to_win)}<small>TO WIN</small>`:b.status==='push'?`$0.00<small>PUSH</small>`:`<span class="${cls(b.profit)}">${money(b.profit,true)}</span><small>${b.status==='won'?'WON':'LOST'}</small>`;
-      const tag=b.recommended?`<span class="tag ceo">REAL $${b.ceo_rank?' #'+b.ceo_rank:''}</span>`:'<span class="tag own">YOUR CALL</span>';
-      const clv=b.clv!=null&&b.status!=='open'?` · CLV <span class="${cls(b.clv)}">${pct(b.clv)}</span>`:'';
-      const bkey=b.id+'|'+b.placed_at,isOpen=openBets.has(bkey);
-      const arrow=b.move&&b.move.direction==='for'?' <span class="up">▲</span>':b.move&&b.move.direction==='against'?' <span class="down">▼</span>':'';
-      return `<div class="brow ${b.status}${isOpen?' open2':''}" data-bet="${esc(bkey)}" role="button" tabindex="0" aria-expanded="${isOpen}"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
-        <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>${tag}${arrow}
-          <div class="g">${esc(b.book)} · ${money(b.stake)} · ${esc(b.game)} · ${esc(when(b.commence))}</div>
-          ${b.status==='open'&&b.needs?`<div class="needs">${esc(b.needs)}</div>`:''}
-          ${(b.games||[]).filter(g=>g.final).map(g=>`<div class="final">${g.leg?esc(g.leg)+': ':''}${esc(g.final)}</div>`).join('')}
-          <div class="g">${esc(b.agents.join(', '))}${clv}</div>
-          ${isOpen?moveHtml(b):''}</div>
-        <div class="amt">${amt}</div></div>`}).join('')||'<div class="empty">Nothing here.</div>'}</div>`;
-  box.querySelectorAll('.brow').forEach(x=>{const tog=()=>{const k=x.dataset.bet;openBets.has(k)?openBets.delete(k):openBets.add(k);myBetsView()};
+    ${days.map(d=>`<div class="hday"><span>${esc(d.k)}</span><span class="${cls(d.net)}">${money(d.net,true)}</span></div>
+      <div class="betlist">${d.bets.map(row).join('')}</div>`).join('')||'<div class="empty">Nothing here.</div>'}
+    <p class="q" style="font-size:11px;margin:10px 0 0">Tap a bet for the book, tipsters, each parlay leg, and how your price compared to the closing line.</p>`;
+  box.querySelectorAll('.brow').forEach(x=>{const tog=()=>{const k=x.dataset.bet;openBets.has(k)?openBets.delete(k):openBets.add(k);historyView()};
     x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog()}}});
-  box.querySelectorAll('[data-bf]').forEach(x=>x.onclick=()=>{betFilter=x.dataset.bf;myBetsView()});
-  box.querySelectorAll('.sgame').forEach(x=>{const tog=e=>{if(e.target.closest('a'))return;const k=x.dataset.game;openGames.has(k)?openGames.delete(k):openGames.add(k);myBetsView()};
-    x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog(e)}}});
+  box.querySelectorAll('[data-bf]').forEach(x=>x.onclick=()=>{betFilter=x.dataset.bf;historyView()});
 }
 
 /* ---------------------------------------------------------------- ledger */
@@ -455,8 +476,9 @@ function ledgerView(){
     g+=`<text x="40" y="156" fill="#94aba1" font-family="VT323" font-size="13">${days[0].slice(5)}</text><text x="312" y="156" text-anchor="end" fill="#94aba1" font-family="VT323" font-size="13">${days[days.length-1].slice(5)}</text>`;
   }
   svg.innerHTML=g;
-  myBetsView();
+  myBetsView();historyView();
   const needs=S.picks.filter(p=>S.needs_grading.includes(p.id));
+  if(needs.length)$('bts').open=true;
   $('needs').innerHTML=needs.length?needs.map(p=>`<div class="li"><div><b>${esc(p.bet)}</b><div class="g">${esc(p.game)} · ${esc(p.agent_name)}</div></div>
     <div class="btnrow" style="margin:0">${['win','loss','push'].map(r=>`<button data-grade="${r}" data-id="${esc(p.id)}">${r.toUpperCase()}</button>`).join('')}</div></div>`).join('')
     :'<div class="q">Everything finished has been graded automatically.</div>';
@@ -496,7 +518,7 @@ function render(){
   if(!$('sheet').hidden){const n=$('sheetNm').textContent;const all=[...S.roster.tipsters,...Object.values(S.roster.staff)];const w=all.find(a=>a.name.toUpperCase()===n);if(w)openSheet(w.id)}
 }
 function show(v){
-  view=v;['office','slate','tipsters','ledger'].forEach(k=>$('v-'+k).hidden=k!==v);
+  view=v;['office','slate','tipsters','ledger','history'].forEach(k=>$('v-'+k).hidden=k!==v);
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   Office.show(v==='office');try{localStorage.setItem('lab-view',v)}catch(e){}
 }
@@ -510,6 +532,6 @@ $('zIn').onclick=()=>Office.zoom(1.25);$('zOut').onclick=()=>Office.zoom(0.8);$(
 
 Office.init($('office'),id=>{if(id==='cooler'){openSheet(null);openChat(0)}else{$('chat').hidden=true;openSheet(id)}});
 sprite($('ceoAv'),{shirt:'#f0c281',hair:'#dcdcdc',skin:'#d9a57c'});
-show(['office','slate','tipsters','ledger'].includes(view)?view:'office');
+show(['office','slate','tipsters','ledger','history'].includes(view)?view:'office');
 load();
 })();

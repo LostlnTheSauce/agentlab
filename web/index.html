@@ -81,12 +81,10 @@
   </section>
 
   <section class="view" id="v-ledger" aria-label="My bets" hidden>
-    <div class="h">MY BETS <small>every real bet you've placed</small></div>
+    <div class="h">MY BETS <small>what you have riding</small></div>
     <div id="myBets"></div>
-    <div class="h2">BEHIND THE SCENES</div>
+    <details class="bts" id="bts"><summary>BEHIND THE SCENES</summary>
     <div class="lgrid">
-      <div class="box"><h3>PROFIT OVER TIME</h3><svg id="eq" viewBox="0 0 320 160" role="img" aria-label="Cumulative profit"></svg>
-        <div class="legend"><span><i style="background:var(--lime)"></i>Paper firm</span><span><i style="background:var(--amber)"></i>Your real bets</span></div></div>
       <div class="box"><h3>NEEDS A RESULT</h3><div class="list" id="needs"></div></div>
       <div class="box"><h3>THE ODDS API</h3><div id="credits"></div></div>
       <div class="box"><h3>CLAUDE API SPEND</h3><div id="claude"></div></div>
@@ -95,6 +93,14 @@
       <div class="box"><h3>HOUSE RULES</h3><div id="rules" style="font-size:12px"></div>
         <form method="post" action="logout" class="btnrow"><button type="submit">SIGN OUT</button></form></div>
     </div>
+    </details>
+  </section>
+
+  <section class="view" id="v-history" aria-label="History" hidden>
+    <div class="h">HISTORY <small>every finished bet, with final scores</small></div>
+    <div id="history"></div>
+    <div class="box" style="margin-top:14px"><h3>PROFIT OVER TIME</h3><svg id="eq" viewBox="0 0 320 160" role="img" aria-label="Cumulative profit"></svg>
+      <div class="legend"><span><i style="background:var(--lime)"></i>Paper firm</span><span><i style="background:var(--amber)"></i>Your real bets</span></div></div>
   </section>
 </div>
 
@@ -123,6 +129,7 @@
     <button data-v="slate"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 1h4v4H1zm6 0h4v4H7zM1 7h4v4H1zm6 0h4v4H7z"/></svg><span>SLATE<span class="badge" id="navBadge" hidden></span></span></button>
     <button data-v="tipsters"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M4 1h4v4H4zM2 6h8v5H2z"/></svg>TIPSTERS</button>
     <button data-v="ledger"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M1 10h10v1H1zM2 6h2v4H2zm3-3h2v7H5zm3 2h2v5H8z"/></svg>MY BETS</button>
+    <button data-v="history"><svg viewBox="0 0 12 12" shape-rendering="crispEdges" fill="currentColor"><path d="M3 1h6v1H3zM2 2h1v1H2zm7 0h1v1H9zM1 3h1v6H1zm9 0h1v6h-1zM2 9h1v1H2zm7 0h1v1H9zM3 10h6v1H3zM5 3h1v4H5zm1 3h2v1H6z"/></svg>HISTORY</button>
   </nav>
 </div>
 <script src="office.js"></script>
