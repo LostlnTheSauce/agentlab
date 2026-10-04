@@ -422,12 +422,14 @@ class Lab:
             if not ev or ev["status"] == "final":
                 continue
             cx = json.loads(ev["context"] or "{}")
-            if cx.get("broadcast") and cx.get("espn_link"):
-                continue
+            # re-match every time (scoreboards are cached per run): this also heals a link saved from the wrong game
             g = self.espn.find(ev["sport"], ev["home"], ev["away"], ev["commence"])
-            if g and (g.get("broadcast") or g.get("link")):
-                cx.update(broadcast=g.get("broadcast") or cx.get("broadcast"), espn_link=g.get("link") or cx.get("espn_link"))
-                self.db.run("UPDATE events SET context=?, espn_id=COALESCE(espn_id, ?) WHERE id=?", (json.dumps(cx), g.get("espn_id"), ev_id))
+            if not g:
+                continue
+            new = dict(cx, broadcast=g.get("broadcast") or (cx.get("broadcast") if ev["espn_id"] == g.get("espn_id") else None),
+                       espn_link=g.get("link") or None)
+            if new != cx or ev["espn_id"] != g.get("espn_id"):
+                self.db.run("UPDATE events SET context=?, espn_id=? WHERE id=?", (json.dumps(new), g.get("espn_id"), ev_id))
                 done += 1
         return done
 

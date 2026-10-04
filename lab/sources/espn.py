@@ -37,19 +37,24 @@ def similarity(a: str, b: str) -> float:
 
 def match_game(home: str, away: str, commence: str, games: list[dict]) -> dict | None:
     when = parse(commence)
-    best, best_score = None, 0.0
+    found = []
     for g in games:
         try:
-            if abs((parse(g["date"]) - when).total_seconds()) > 30 * 3600:
-                continue
+            gap = abs((parse(g["date"]) - when).total_seconds())
         except (KeyError, ValueError):
+            continue
+        if gap > 30 * 3600:
             continue
         straight = similarity(home, g["home"]) + similarity(away, g["away"])
         swapped = similarity(home, g["away"]) + similarity(away, g["home"])
-        score = max(straight, swapped)
-        if score > best_score:
-            best, best_score = g, score
-    return best if best_score >= 1.3 else None
+        found.append((max(straight, swapped), gap, g))
+    if not found:
+        return None
+    top = max(s for s, _, _ in found)
+    if top < 1.3:
+        return None
+    # the same two teams on back-to-back days (a playoff series): take the game closest to the bet's start time
+    return min(((gap, g) for s, gap, g in found if s >= top - 0.15), key=lambda x: x[0])[1]
 
 
 def _game(e: dict) -> dict | None:

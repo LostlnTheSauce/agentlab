@@ -101,6 +101,11 @@ class Matching(unittest.TestCase):
                  {"date": iso(NOW), "home": "Miami Hurricanes", "away": "Florida State Seminoles"}]
         g = match_game("Miami Hurricanes", "Florida St Seminoles", iso(NOW), games)
         self.assertEqual(g["home"], "Miami Hurricanes")
+        # a playoff series: same teams on back-to-back days, yesterday's game listed first
+        series = [{"date": iso(NOW - timedelta(hours=19.5)), "home": "Milwaukee Brewers", "away": "San Diego Padres", "n": 1},
+                  {"date": iso(NOW), "home": "Milwaukee Brewers", "away": "San Diego Padres", "n": 2}]
+        self.assertEqual(match_game("Milwaukee Brewers", "San Diego Padres", iso(NOW), series)["n"], 2)
+        self.assertEqual(match_game("Milwaukee Brewers", "San Diego Padres", iso(NOW - timedelta(hours=19.5)), series)["n"], 1)
 
     def test_innings(self):
         self.assertAlmostEqual(ip_to_float("5.2"), 5 + 2 / 3)
