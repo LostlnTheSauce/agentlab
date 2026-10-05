@@ -492,6 +492,28 @@ function historyView(){
 }
 
 /* ---------------------------------------------------------------- ledger */
+/* scrub the cash chart: hover or slide a finger to see the bet and running total at that point */
+let EQ=null,eqSel=null;
+function eqShow(i){
+  const tip=$('eqTip'),mark=document.getElementById('eqMark');
+  if(!EQ||!mark){return}
+  if(i==null||i>EQ.n){eqSel=null;mark.style.display='none';tip.innerHTML='<span class="q">Hover or slide a finger along the chart to see each bet. Each step is a settled bet, starting at $0.</span>';return}
+  eqSel=i;const v=EQ.pts[i],X=EQ.x(i),Y=EQ.y(v);
+  mark.style.display='';const ln=document.getElementById('eqLine'),dot=document.getElementById('eqDot');
+  ln.setAttribute('x1',X);ln.setAttribute('x2',X);dot.setAttribute('x',X-4);dot.setAttribute('y',Y-4);
+  if(i===0){tip.innerHTML='<b>START</b> $0.00 <span class="q">· before your first bet settled</span>';return}
+  const e=EQ.R[i-1],res=e.res==='win'?'WON':e.res==='loss'?'LOST':'PUSH';
+  tip.innerHTML=`<b>BET ${i} OF ${EQ.n}</b> <span class="q">· ${esc(when(e.t))}</span><br>${esc(e.bet||'')} ${esc(e.price||'')} · <span class="${cls(e.d)}">${res} ${money(e.d||0,true)}</span><br>Running total: <span class="${cls(v)}"><b class="tot">${money(v,true)}</b></span>`;
+}
+(function(){
+  const svg=$('eq');let down=false;
+  const at=e=>{if(!EQ)return;const r=svg.getBoundingClientRect(),vx=(e.clientX-r.left)/r.width*320;
+    eqShow(Math.max(0,Math.min(EQ.n,Math.round((vx-44)/228*EQ.n))))};
+  svg.addEventListener('pointerdown',e=>{down=true;at(e)});
+  svg.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'||down)at(e)});
+  window.addEventListener('pointerup',()=>{down=false});
+  svg.addEventListener('pointerleave',e=>{if(e.pointerType==='mouse')eqShow(null)});
+})();
 function ledgerView(){
   /* your cash only: one step per settled bet in game order, starting from $0 */
   const svg=$('eq'),R=(S.real.equity||[]).filter(e=>e.t);
@@ -509,8 +531,10 @@ function ledgerView(){
     g+=`<text x="${x(n)+4}" y="${y(last)+5}" fill="${col}" font-family="VT323" font-size="16">${money(last,true)}</text>`;
     const lbl=t=>new Date(t).toLocaleDateString([], {month:'short',day:'numeric'});
     g+=`<text x="44" y="152" fill="#94aba1" font-family="VT323" font-size="13">${lbl(R[0].t)}</text><text x="272" y="152" text-anchor="end" fill="#94aba1" font-family="VT323" font-size="13">${lbl(R[n-1].t)} · ${n} bet${n===1?'':'s'}</text>`;
+    g+=`<g id="eqMark" style="display:none"><line id="eqLine" y1="16" y2="136" stroke="#94aba1" stroke-dasharray="2 2"/><rect id="eqDot" width="8" height="8" fill="#fff" stroke="#f0c281" stroke-width="2"/></g>`;
+    EQ={R,pts,n,x,y};
   }
-  svg.innerHTML=g;
+  svg.innerHTML=g;eqShow(eqSel);
   myBetsView();historyView();
   const needs=S.picks.filter(p=>S.needs_grading.includes(p.id));
   if(needs.length)$('bts').open=true;

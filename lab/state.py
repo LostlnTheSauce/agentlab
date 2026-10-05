@@ -99,12 +99,17 @@ def build_state(settings, db: DB) -> dict:
 
     def equity(kind):
         # running profit after each settled bet, in game-time order (merged tipster shares count as one bet)
-        rows = db.all("SELECT MIN(p.commence) t, SUM(b.profit_cents) pr FROM bets b JOIN picks p ON p.id=b.pick_id "
+        rows = db.all("SELECT MIN(p.commence) t, SUM(b.profit_cents) pr, MIN(b.pick_id) pid, MAX(b.result) res FROM bets b JOIN picks p ON p.id=b.pick_id "
                       "WHERE b.kind=? AND b.result IS NOT NULL GROUP BY b.placed_at, COALESCE(p.group_id, p.id) ORDER BY t, MIN(b.id)", (kind,))
         run, out = 0, []
         for r in rows:
             run += r["pr"] or 0
-            out.append({"t": r["t"], "v": round(run / 100, 2)})
+            point = {"t": r["t"], "v": round(run / 100, 2)}
+            if kind == "real":  # what the bet was, for the chart's hover readout
+                p = db.one("SELECT * FROM picks WHERE id=?", (r["pid"],))
+                point.update(bet=describe(p).rsplit(" ", 1)[0] if p else "", price=om.fmt(p["price"]) if p else "",
+                             d=round((r["pr"] or 0) / 100, 2), res=r["res"])
+            out.append(point)
         return out
 
     breakdown = splits(db, settings)
