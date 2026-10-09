@@ -119,11 +119,7 @@ function openSheet(id){
     nums.innerHTML=p.graded?`<span>${p.w}–${p.l}${p.p?'–'+p.p:''}</span><span class="${cls(p.units)}">${units(p.units)}</span><span class="${cls(p.clv)}">CLV ${pct(p.clv)}</span><span>real wallet ${money(a.real_wallet)}</span>`
       :`<span class="q">No graded bets yet</span><span>real wallet ${money(a.real_wallet)}</span>`;
     const mineAll=a.recent||[];
-    const st=x=>x.result?`<span class="pill ${x.result}">${x.result.toUpperCase()}</span>`:'<span class="pill passed">OPEN</span>';
-    const you=x=>x.you?` <span class="tag youbet">YOU BET ${money(x.you.stake)}${x.you.result?' · '+money(x.you.profit,true):''}</span>`:'';
-    const line=x=>`<div class="pickline">${st(x)} <b>${esc(x.bet)} ${esc(x.price_txt)}</b>${you(x)}${x.real_pick?' <span class="pill real">REAL $</span>':''}
-      <div class="g">${esc(x.game)} · ${esc(when(x.commence))}</div>${x.final?`<div class="final">${esc(x.final)}</div>`:x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}</div>`;
-    picks.innerHTML=mineAll.length?'<b class="ph">RECENT PICKS</b>'+mineAll.map(line).join(''):`<div class="pickline">${jailed?'Serving time. No desk, no new picks; any open bets still get graded.':'Nothing today that clears the price bar.'}</div>`;
+    picks.innerHTML=mineAll.length?'<b class="ph">RECENT PICKS</b>'+recentHtml(a):`<div class="pickline">${jailed?'Serving time. No desk, no new picks; any open bets still get graded.':'Nothing today that clears the price bar.'}</div>`;
   }else{nums.hidden=true;picks.innerHTML=''}
 }
 
@@ -305,35 +301,55 @@ $('placeForm').addEventListener('submit',e=>{
 });
 
 /* ---------------------------------------------------------------- tipsters */
+/* a tipster's recent picks: status, your money on it, final score or what it needs */
+function recentHtml(a,onlyYours){
+  const list=(a.recent||[]).filter(x=>!onlyYours||x.you);
+  const st=x=>x.result?`<span class="pill ${x.result}">${x.result.toUpperCase()}</span>`:'<span class="pill passed">OPEN</span>';
+  const you=x=>x.you?` <span class="tag youbet">YOU BET ${money(x.you.stake)}${x.you.result?' · '+money(x.you.profit,true):''}</span>`:'';
+  return list.map(x=>`<div class="pickline">${st(x)} <b>${esc(x.bet)} ${esc(x.price_txt)}</b>${you(x)}${x.real_pick?' <span class="pill real">REAL $</span>':''}
+      <div class="g">${esc(x.game)} · ${esc(when(x.commence))}</div>${x.final?`<div class="final">${esc(x.final)}</div>`:x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}</div>`).join('');
+}
 function tipsters(){
-  const byAgent=Object.fromEntries(S.agents.map(a=>[a.id,a]));
-  const key={units:a=>a.paper.units,clv:a=>a.paper.clv??-9,roi:a=>a.paper.roi??-9,rec:a=>a.paper.w-a.paper.l,real:a=>a.real_wallet}[sortKey];
+  const byAgent=Object.fromEntries(S.agents.map(a=>[a.id,a])),real=mode==='real';
+  /* one set of numbers per mode: paper = every pick, real = only bets you put cash on */
+  const num=a=>real?{n:a.real.w+a.real.l+a.real.p,w:a.real.w,l:a.real.l,p:a.real.p,profit:a.real.profit,roi:a.real.roi,clv:a.real.clv,last10:a.real.last10||[],open:a.real.open}
+    :{n:a.paper.graded,w:a.paper.w,l:a.paper.l,p:a.paper.p,profit:a.paper.units,roi:a.paper.roi,clv:a.paper.clv,last10:a.paper.last10,open:a.paper.open};
+  const sorts=[['units',real?'PROFIT':'UNITS'],['rec','RECORD'],['roi','ROI'],['clv','CLV'],['real','WALLET']];
+  const key={units:x=>x.s.n?x.s.profit:-1e6,clv:x=>x.s.clv??-9,roi:x=>x.s.roi??-9,rec:x=>x.s.n?x.s.w-x.s.l:-1e6,real:x=>x.a.real_wallet}[sortKey];
   const color={SHARP:'#c7f78c',HOT:'#f0c281',STEADY:'#5ed3b4',ROOKIE:'#94aba1',BENCHMARK:'#94aba1','ON NOTICE':'#ff8e80',BROKE:'#ff8e80'};
+  $('tipPaper').classList.toggle('on',!real);$('tipReal').classList.toggle('on',real);
+  $('tipSort').innerHTML=sorts.map(([k,l])=>`<button data-s="${k}" class="${sortKey===k?'on':''}">${l}</button>`).join('');
   const tb=$('tbody');tb.innerHTML='';
-  [...S.roster.tipsters].sort((x,y)=>key(byAgent[y.id])-key(byAgent[x.id])).forEach(t=>{
-    const a=byAgent[t.id],p=a.paper,n=p.graded,tr=document.createElement('tr');
-    tr.className='trow'+(openRows.has(t.id)?' open':'');tr.title='Tap for stats by sport and bet type';
-    tr.onclick=()=>{openRows.has(t.id)?openRows.delete(t.id):openRows.add(t.id);tipsters()};
-    const dots=Array.from({length:10},(_,i)=>{const r=p.last10[p.last10.length-10+i];return `<i class="${r||''}"></i>`}).join('');
-    tr.innerHTML=`<td><div class="agentcell"><canvas width="13" height="16"></canvas><div><b>${esc(t.name)}</b><div class="q" style="font-size:11px">${esc(t.role)}</div></div></div></td>
-      <td class="q">${esc(S.roster.desks.find(d=>d.key===t.desk).label)}</td>
-      <td class="n">${n?`${p.w}–${p.l}${p.p?'–'+p.p:''}`:'—'}</td>
-      <td class="n ${cls(p.units)}">${n?units(p.units):'—'}</td>
-      <td class="n ${cls(p.roi)}">${n?pct(p.roi):'—'}</td>
-      <td class="n ${cls(p.clv)}">${pct(p.clv)}</td>
-      <td><div class="form">${dots}</div></td>
-      <td class="n ${a.real_wallet<S.config.wallet?'down':a.real_wallet>S.config.wallet?'up':''}">${money(a.real_wallet)}</td>
-      <td><span class="status" style="color:${color[a.status]};border-color:${color[a.status]}">${a.status}</span></td>`;
-    sprite(tr.querySelector('canvas'),t.look);tb.appendChild(tr);
-    if(openRows.has(t.id)){const sr=document.createElement('tr');sr.className='splitrow';sr.innerHTML=`<td colspan="9">${splitsTable(a)}</td>`;tb.appendChild(sr)}
+  S.roster.tipsters.map(t=>({t,a:byAgent[t.id],s:num(byAgent[t.id])})).sort((x,y)=>key(y)-key(x)||(y.s.n-x.s.n)).forEach(({t,a,s})=>{
+    const isOpen=openRows.has(t.id),row=document.createElement('div');
+    row.className='trow'+(isOpen?' open':'')+(real&&!s.n&&!s.open?' idle':'');row.setAttribute('role','button');row.tabIndex=0;row.setAttribute('aria-expanded',isOpen);
+    const dots=Array.from({length:10},(_,i)=>{const r=s.last10[s.last10.length-10+i];return `<i class="${r||''}"></i>`}).join('');
+    const desk=(S.roster.desks.find(d=>d.key===t.desk)||{label:''}).label;
+    const big=s.n?(real?money(s.profit,true):units(s.profit)):(real&&s.open?`${s.open} open`:'—');
+    row.innerHTML=`<div class="thead"><canvas width="13" height="16"></canvas>
+        <div class="who"><b>${esc(t.name)}</b><div class="q">${esc(t.role)} · ${esc(desk)}</div></div>
+        <div class="tnum"><span class="${s.n?cls(s.profit):'q'}">${big}</span><small>${s.n?`${s.w}–${s.l}${s.p?'–'+s.p:''}`:real?'no cash bets yet':'no results yet'}</small></div></div>
+      <div class="tmeta"><span>ROI <b class="${cls(s.roi)}">${s.roi==null?'—':pct(s.roi)}</b></span><span>CLV <b class="${cls(s.clv)}">${s.clv==null?'—':pct(s.clv)}</b></span>
+        <div class="form">${dots}</div>
+        <span>WALLET <b class="${a.real_wallet<S.config.wallet?'down':a.real_wallet>S.config.wallet?'up':''}">${money(a.real_wallet)}</b></span>
+        <span class="status" style="color:${color[a.status]};border-color:${color[a.status]}">${a.status}</span></div>
+      ${isOpen?`<div class="tmore">
+        <p class="meth">${esc(t.method||'')}</p>${t.quote?`<p class="quote">"${esc(t.quote)}"</p>`:''}
+        <div class="q" style="font-size:11px">${real?`Cash: ${money(a.real.staked||0)} settled${a.real.open?` · ${a.real.open} open`:''} · paper record ${a.paper.graded?`${a.paper.w}–${a.paper.l}${a.paper.p?'–'+a.paper.p:''}, ${units(a.paper.units)}`:'none yet'}`
+          :`Cash you put on their picks: ${a.real.w+a.real.l+a.real.p?`${a.real.w}–${a.real.l}${a.real.p?'–'+a.real.p:''}, ${money(a.real.profit,true)}`:'none settled yet'}`}</div>
+        <b class="ph">${real?'PICKS YOU BET':'RECENT PICKS'}</b>${recentHtml(a,real)||`<div class="q" style="font-size:12px">${real?'You haven\'t put cash on any of their recent picks.':'No picks yet.'}</div>`}
+        <b class="ph">PAPER RECORD BY SPORT AND BET TYPE</b>${splitsTable(a)}</div>`:''}`;
+    const tog=e=>{if(e.target.closest('.tmore'))return;openRows.has(t.id)?openRows.delete(t.id):openRows.add(t.id);tipsters()};
+    row.onclick=tog;row.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog(e)}};
+    sprite(row.querySelector('canvas'),t.look);tb.appendChild(row);
   });
   meetingBox();jailBox(byAgent);
-  $('unitNote').textContent=`paper record · 1 unit = ${money(S.config.unit)} · real wallets start at ${money(S.config.wallet)}`;
+  $('unitNote').textContent=real?`only bets you put cash on · wallets start at ${money(S.config.wallet)}`:`every pick, on paper · 1 unit = ${money(S.config.unit)}`;
   const notice=S.agents.filter(a=>a.status==='ON NOTICE').map(a=>S.roster.tipsters.find(t=>t.id===a.id).name);
   const broke=S.agents.filter(a=>a.status==='BROKE').map(a=>S.roster.tipsters.find(t=>t.id===a.id).name);
   $('tipNotice').innerHTML=[notice.length?`<b class="down">On notice:</b> ${esc(notice.join(', '))}. Paper only until their results and CLV recover.`:'',
     broke.length?`<b class="down">Broke:</b> ${esc(broke.join(', '))}. Their real wallet is empty; they keep betting on paper.`:'',
-    'CLV (closing line value) says whether a tipster got a better price than where the line closed. Over a few weeks it separates skill from luck much faster than win–loss. Coin Flip picks at random: anyone below him isn\'t adding anything.'].filter(Boolean).join('<br><br>');
+    'Tap a tipster for their method and picks. CLV (closing line value) says whether a tipster got a better price than where the line closed. Over a few weeks it separates skill from luck much faster than win–loss. Coin Flip picks at random: anyone below him isn\'t adding anything.'].filter(Boolean).join('<br><br>');
 }
 
 const openRows=new Set();
@@ -585,7 +601,8 @@ function show(v){
 function setMode(m){mode=m;try{localStorage.setItem('lab-mode',m)}catch(e){}render()}
 document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)show(b.dataset.v)});
 $('filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;filt=b.dataset.f;slate()});
-document.querySelector('thead').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sortKey=b.dataset.s;document.querySelectorAll('th button').forEach(x=>x.classList.toggle('on',x===b));tipsters()});
+$('tipSort').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sortKey=b.dataset.s;tipsters()});
+$('tipPaper').onclick=()=>setMode('paper');$('tipReal').onclick=()=>setMode('real');
 $('modePaper').onclick=()=>setMode('paper');$('modeReal').onclick=()=>setMode('real');
 $('sheetX').onclick=()=>{Office.select(null);openSheet(null)};
 $('zIn').onclick=()=>Office.zoom(1.25);$('zOut').onclick=()=>Office.zoom(0.8);$('zFit').onclick=()=>Office.fit();$('toSlate').onclick=()=>show('slate');

@@ -27,7 +27,7 @@ def agent_stats(db: DB, settings) -> dict[str, dict]:
     for a in roster.load(db):
         stats[a["id"]] = {"w": 0, "l": 0, "p": 0, "graded": 0, "profit_cents": 0, "staked_cents": 0, "units": 0.0,
                           "open": 0, "clv": None, "clv_n": 0, "last10": [], "real_profit_cents": 0, "real_w": 0, "real_l": 0,
-                          "real_open": 0, "picks_total": 0}
+                          "real_open": 0, "picks_total": 0, "real_p": 0, "real_staked_cents": 0, "real_last10": [], "real_clv": None, "real_clv_n": 0}
     for r in db.all("SELECT agent, kind, stake_cents, result, profit_cents FROM bets ORDER BY placed_at"):
         s = stats.get(r["agent"])
         if not s:
@@ -45,10 +45,13 @@ def agent_stats(db: DB, settings) -> dict[str, dict]:
                 s["real_open"] += 1
                 continue
             s["real_profit_cents"] += r["profit_cents"]
+            s["real_staked_cents"] += r["stake_cents"]
             if r["result"] == "win":
                 s["real_w"] += 1
             elif r["result"] == "loss":
                 s["real_l"] += 1
+            else:
+                s["real_p"] += 1
     for r in db.all("SELECT agent, result, clv FROM picks WHERE result IS NOT NULL ORDER BY graded_at"):
         s = stats.get(r["agent"])
         if not s:
@@ -57,6 +60,16 @@ def agent_stats(db: DB, settings) -> dict[str, dict]:
         if r["clv"] is not None:
             s["clv"] = ((s["clv"] or 0) * s["clv_n"] + r["clv"]) / (s["clv_n"] + 1)
             s["clv_n"] += 1
+    # the same form and closing-line read, but only for bets that had cash on them
+    for r in db.all("SELECT b.agent, b.result, p.clv FROM bets b JOIN picks p ON p.id=b.pick_id "
+                    "WHERE b.kind='real' AND b.result IS NOT NULL ORDER BY b.settled_at, b.id"):
+        s = stats.get(r["agent"])
+        if not s:
+            continue
+        s["real_last10"] = (s["real_last10"] + [r["result"]])[-10:]
+        if r["clv"] is not None:
+            s["real_clv"] = ((s["real_clv"] or 0) * s["real_clv_n"] + r["clv"]) / (s["real_clv_n"] + 1)
+            s["real_clv_n"] += 1
     for r in db.all("SELECT agent, COUNT(*) AS n FROM picks GROUP BY agent"):
         if r["agent"] in stats:
             stats[r["agent"]]["picks_total"] = r["n"]

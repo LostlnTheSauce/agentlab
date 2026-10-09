@@ -69,13 +69,13 @@
   <section class="view" id="v-tipsters" aria-label="Tipsters" hidden>
     <div id="meetingBox"></div>
     <div class="h" style="margin-top:14px">TIPSTER STANDINGS <small id="unitNote"></small></div>
-    <div class="tbl"><table>
-      <thead><tr>
-        <th>TIPSTER</th><th>DESK</th><th><button data-s="rec">RECORD</button></th><th><button data-s="units" class="on">UNITS</button></th>
-        <th><button data-s="roi">ROI</button></th><th><button data-s="clv">CLV</button></th><th>LAST 10</th><th><button data-s="real">REAL $</button></th><th>STATUS</th>
-      </tr></thead>
-      <tbody id="tbody"></tbody>
-    </table></div>
+    <div class="tiptools">
+      <div class="seg" role="tablist" aria-label="Which bets to count">
+        <button id="tipPaper" role="tab">PAPER</button><button id="tipReal" role="tab">REAL CASH</button>
+      </div>
+      <div class="filters" id="tipSort" aria-label="Sort by"></div>
+    </div>
+    <div class="tlist" id="tbody"></div>
     <div class="notice" id="tipNotice"></div>
     <div id="jailBox" hidden></div>
   </section>

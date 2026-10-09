@@ -121,7 +121,9 @@ def build_state(settings, db: DB) -> dict:
         agents.append({
             "id": a["id"], "paper": {k: s[k] for k in ("w", "l", "p", "graded", "units", "roi", "clv", "open", "last10", "picks_total")},
             "paper_wallet": round(paper_w[a["id"]], 2), "real_wallet": round(real_w[a["id"]], 2),
-            "real": {"profit": s["real_profit_cents"] / 100, "w": s["real_w"], "l": s["real_l"], "open": s["real_open"]},
+            "real": {"profit": s["real_profit_cents"] / 100, "w": s["real_w"], "l": s["real_l"], "p": s["real_p"], "open": s["real_open"],
+                     "staked": s["real_staked_cents"] / 100, "roi": (s["real_profit_cents"] / s["real_staked_cents"]) if s["real_staked_cents"] else None,
+                     "last10": s["real_last10"], "clv": s["real_clv"]},
             "today": [{"id": v["id"], "bet": v["bet"], "price": v["price_txt"], "board": v["board"]} for v in today],
             "status": "JAILED" if a["status"] == "jailed" else status_of(a, s, real_w[a["id"]], settings),
             "splits": breakdown.get(a["id"], []), "recent": history.get(a["id"], []),
