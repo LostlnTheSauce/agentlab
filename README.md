@@ -10,7 +10,7 @@ you can see, over time, which tipsters actually know something.
 | When (your time zone) | What happens | Costs |
 |---|---|---|
 | 8:00 | **Morning slate.** Pull Bovada + 9 other books from The Odds API, research every game, each tipster picks from bets its strategy allows, risk board reviews, CEO writes the memo and picks real-money bets. Phone alert if enabled. | ~3 odds credits per sport, Claude calls |
-| 12:00, 16:00 | **Rescans** for sports with games in the next 18 hours. New strong picks are flagged LATE and alerted. | same, fewer calls |
+| 11:00, 15:00 | **Rescans** for sports with games starting in the next 6.5 hours. New strong picks are flagged LATE and alerted. | same, fewer calls |
 | every 5 min | **Closing lines** for games about to start (for CLV), **grading** of finished games from ESPN. | closing: ~3 credits per sport; grading free |
 | Sunday 9 PM | **Board meeting.** The Commish writes the weekly minutes, names an MVP, and may fire one tipster (only from a shortlist: enough bets, losing money *and* losing to the closing line, or an empty wallet). The fired tipster goes to **tipster jail** in the office; Claude designs a replacement for the empty seat. | 2 Claude calls |
 | 3 AM | **Backup** of the database to `data/backups/` (last 14 kept). | free |

@@ -12,8 +12,8 @@ const ago=iso=>{const s=(Date.now()-new Date(iso))/1000;return s<90?Math.round(s
 
 let seenPicks={};try{seenPicks=JSON.parse(localStorage.getItem('lab-seen-picks')||'{}')}catch(e){}
 let quickBet=true;try{quickBet=localStorage.getItem('lab-quickbet')!=='off'}catch(e){}
-let openPaper=false,S=null,mode='paper',view='office',filt='all',sortKey='units',fetchedAt=0,people={};
-try{mode=localStorage.getItem('lab-mode')||'paper';view=localStorage.getItem('lab-view')||'office'}catch(e){}
+let openPaper=false,S=null,mode='real',view='office',filt='all',sortKey='units',fetchedAt=0,people={};
+try{mode=localStorage.getItem('lab-mode2')||'real';view=localStorage.getItem('lab-view')||'office'}catch(e){}
 
 async function api(path,body){
   const opt=body?{method:'POST',headers:{'Content-Type':'application/json','X-Lab':'1'},body:JSON.stringify(body)}:{};
@@ -322,9 +322,12 @@ function tipsters(){
   $('tipPaper').classList.toggle('on',!real);$('tipReal').classList.toggle('on',real);
   $('tipSort').innerHTML=sorts.map(([k,l])=>`<button data-s="${k}" class="${sortKey===k?'on':''}">${l}</button>`).join('');
   const tb=$('tbody');tb.innerHTML='';
+  const bench=document.createElement('details');bench.className='bench';bench.open=benchOpen;bench.innerHTML='<summary></summary><div class="tlist"></div>';
+  bench.addEventListener('toggle',()=>{benchOpen=bench.open});
   S.roster.tipsters.map(t=>({t,a:byAgent[t.id],s:num(byAgent[t.id])})).sort((x,y)=>key(y)-key(x)||(y.s.n-x.s.n)).forEach(({t,a,s})=>{
     const isOpen=openRows.has(t.id),row=document.createElement('div');
-    row.className='trow'+(isOpen?' open':'')+(real&&!s.n&&!s.open?' idle':'');row.setAttribute('role','button');row.tabIndex=0;row.setAttribute('aria-expanded',isOpen);
+    const idle=!s.n&&!s.open;
+    row.className='trow'+(isOpen?' open':'');row.setAttribute('role','button');row.tabIndex=0;row.setAttribute('aria-expanded',isOpen);
     const dots=Array.from({length:10},(_,i)=>{const r=s.last10[s.last10.length-10+i];return `<i class="${r||''}"></i>`}).join('');
     const desk=(S.roster.desks.find(d=>d.key===t.desk)||{label:''}).label;
     const big=s.n?(real?money(s.profit,true):units(s.profit)):(real&&s.open?`${s.open} open`:'—');
@@ -343,8 +346,11 @@ function tipsters(){
         <b class="ph">PAPER RECORD BY SPORT AND BET TYPE</b>${splitsTable(a)}</div>`:''}`;
     const tog=e=>{if(e.target.closest('.tmore'))return;openRows.has(t.id)?openRows.delete(t.id):openRows.add(t.id);tipsters()};
     row.onclick=tog;row.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog(e)}};
-    sprite(row.querySelector('canvas'),t.look);tb.appendChild(row);
+    sprite(row.querySelector('canvas'),t.look);(idle?bench.lastElementChild:tb).appendChild(row);
   });
+  const nb=bench.lastElementChild.children.length;
+  if(nb){bench.firstElementChild.textContent=real?`NO CASH BETS YET · ${nb} tipster${nb===1?'':'s'}`:`ON THE BENCH · ${nb} with no picks yet (out of season or nothing cleared their bar)`;
+    if(!tb.children.length)bench.open=true;tb.appendChild(bench)}
   meetingBox();jailBox(byAgent);
   $('unitNote').textContent=real?`only bets you put cash on · wallets start at ${money(S.config.wallet)}`:`every pick, on paper · 1 unit = ${money(S.config.unit)}`;
   const notice=S.agents.filter(a=>a.status==='ON NOTICE').map(a=>S.roster.tipsters.find(t=>t.id===a.id).name);
@@ -354,7 +360,7 @@ function tipsters(){
     'Tap a tipster for their method and picks. LINE MOVE is how far the market price moved toward a tipster’s picks after they made them. Positive means they were ahead of the market, around zero means no better than the market, negative means the market moved against them. Over a few weeks it separates skill from luck much faster than win–loss, and it decides the MVP and who gets fired. Coin Flip picks at random: anyone below him isn\'t adding anything.'].filter(Boolean).join('<br><br>');
 }
 
-const openRows=new Set();
+const openRows=new Set();let benchOpen=false;
 function splitsTable(a){
   if(!a.splits||!a.splits.length)return '<div class="q">No graded bets yet.</div>';
   return `<table class="splits"><tr><th>SPORT</th><th>BET TYPE</th><th>RECORD</th><th>UNITS</th><th>LINE MOVE</th></tr>${a.splits.map(s=>`<tr><td>${esc(s.sport)}</td><td>${esc(s.market)}</td>
@@ -628,7 +634,7 @@ function show(v){
   Office.show(v==='office');try{localStorage.setItem('lab-view',v)}catch(e){}
   if(v==='ledger')loadLive();
 }
-function setMode(m){mode=m;try{localStorage.setItem('lab-mode',m)}catch(e){}render()}
+function setMode(m){mode=m;try{localStorage.setItem('lab-mode2',m)}catch(e){}render()}
 document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)show(b.dataset.v)});
 $('filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;filt=b.dataset.f;slate()});
 $('tipSort').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;sortKey=b.dataset.s;tipsters()});

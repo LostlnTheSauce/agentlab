@@ -275,7 +275,8 @@ td.n{font:19px var(--f-data)}
 .tlist{display:grid;gap:6px}
 .tlist .trow{border:2px solid var(--line);background:var(--surface);padding:8px 10px;cursor:pointer;display:grid;gap:6px;min-width:0}
 .tlist .trow.open{border-color:var(--lime);background:var(--raised)}
-.tlist .trow.idle .thead,.tlist .trow.idle .tmeta{opacity:.55}
+.bench{margin-top:6px} .bench summary{font:11px var(--f-display);letter-spacing:.06em;color:var(--quiet);cursor:pointer;padding:8px 2px}
+.bench[open] summary{margin-bottom:6px} .bench .trow .thead,.bench .trow .tmeta{opacity:.7}
 .trow .thead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
 .trow .thead canvas{width:26px;height:32px;image-rendering:pixelated}
 .trow .who b{font-weight:500} .trow .who .q{font-size:11px;overflow-wrap:anywhere}
