@@ -67,7 +67,7 @@ def main(argv=None) -> int:
         from .pipeline import Lab
         lab = Lab(s, db)
         if args.cmd == "run":
-            s.daily_credit_cap += max(0, min(args.extra_credits, 30))
+            lab.odds.extra = max(0, min(args.extra_credits, 30))
             if args.fresh and args.kind == "slate":
                 print(f"cleared {lab.clear_today()}")
             # a manual slate counts as the day's slate unless one already ran

@@ -174,7 +174,7 @@ class DemoOdds(OddsClient):
         super().__init__(settings, db, transport=None)
         self.world, self.sim_now = world, None
 
-    def odds(self, sport, markets=None):
+    def odds(self, sport, markets=None, reserve=0):
         self.db.run("INSERT INTO credits(at,local_day,what,cost,remaining,used) VALUES(?,?,?,?,?,?)",
                     (iso(self.sim_now), self.db.get("sim_day", ""), f"demo {sport}", 0, 480, 20))
         return self.world.odds_payload(sport, self.sim_now)
@@ -184,6 +184,9 @@ class DemoEspn(Espn):
     def __init__(self, world, clock):
         super().__init__(transport=None)
         self.world, self.clock = world, clock
+
+    def has_games(self, sport, start, end):
+        return any(ev["sport"] == sport and start <= parse(ev["commence"]) <= end for ev in self.world.events.values())
 
     def scoreboard(self, sport, day):
         out = []

@@ -14,7 +14,7 @@ from .board import pick_kind
 from .explain import needs
 from .research import briefing
 from . import roster
-from .sources.odds import book_name, short
+from .sources.odds import book_name, short, daily_cap
 
 LEAGUE = {"americanfootball_nfl": "NFL", "americanfootball_ncaaf": "College football", "baseball_mlb": "MLB",
           "basketball_nba": "NBA", "soccer_epl": "Premier League", "soccer_usa_mls": "MLS", "soccer_uefa_champs_league": "Champions League"}
@@ -171,7 +171,7 @@ def build_state(settings, db: DB) -> dict:
         "paper": {**totals("paper"), "seeded": seeded, "balance": round(sum(paper_w.values()), 2), "clv": clv["c"], "clv_n": clv["n"], "equity": equity("paper")},
         "real": {**totals("real"), "seeded": seeded, "balance": round(sum(real_w.values()), 2), "equity": equity("real"), "bets": list(grouped.values())},
         "mine": my_bets(db, settings, names, day),
-        "credits": {"today": today_credits, "cap": settings.daily_credit_cap, "remaining": credit.get("remaining"), "used": credit.get("used")},
+        "credits": {"today": today_credits, "cap": daily_cap(settings, db), "remaining": credit.get("remaining"), "used": credit.get("used")},
         "claude": {"today": round(spend["today"], 2), "week": round(spend["week"], 2), "per_day": round(spend["week"] / 7, 2),
                    "tipster_model": settings.tipster_model, "ceo_model": settings.ceo_model},
         "needs_grading": [s["id"] for s in stale],

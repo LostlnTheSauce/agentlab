@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import calendar
+
 import hashlib
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -14,16 +16,18 @@ from .http import SourceError, get_json
 
 BASE = "https://api.the-odds-api.com/v4/sports"
 
+# window_h: how far ahead prices are fetched. Picks are made the day of the game, when prices are freshest and
+# credits aren't spent on games days away.
 # length_h: earliest a game could be over; grading starts asking ESPN then (ESPN decides when it's final)
 SPORT_INFO = {
-    "americanfootball_nfl": {"short": "NFL", "markets": ["h2h", "spreads", "totals"], "window_h": 150, "length_h": 2.75},
-    "americanfootball_ncaaf": {"short": "CFB", "markets": ["h2h", "spreads", "totals"], "window_h": 150, "length_h": 2.75},
-    "baseball_mlb": {"short": "MLB", "markets": ["h2h", "spreads", "totals"], "window_h": 30, "length_h": 2},
-    "basketball_nba": {"short": "NBA", "markets": ["h2h", "spreads", "totals"], "window_h": 30, "length_h": 2},
-    "icehockey_nhl": {"short": "NHL", "markets": ["h2h", "spreads", "totals"], "window_h": 30, "length_h": 2},
-    "soccer_epl": {"short": "EPL", "markets": ["h2h", "totals"], "window_h": 54, "length_h": 1.75},
-    "soccer_usa_mls": {"short": "MLS", "markets": ["h2h", "totals"], "window_h": 54, "length_h": 1.75},
-    "soccer_uefa_champs_league": {"short": "UCL", "markets": ["h2h", "totals"], "window_h": 54, "length_h": 1.75},
+    "americanfootball_nfl": {"short": "NFL", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2.75},
+    "americanfootball_ncaaf": {"short": "CFB", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2.75},
+    "baseball_mlb": {"short": "MLB", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2},
+    "basketball_nba": {"short": "NBA", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2},
+    "icehockey_nhl": {"short": "NHL", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2},
+    "soccer_epl": {"short": "EPL", "markets": ["h2h", "totals"], "window_h": 20, "length_h": 1.75},
+    "soccer_usa_mls": {"short": "MLS", "markets": ["h2h", "totals"], "window_h": 20, "length_h": 1.75},
+    "soccer_uefa_champs_league": {"short": "UCL", "markets": ["h2h", "totals"], "window_h": 20, "length_h": 1.75},
 }
 PROP_MARKETS = ["player_receptions", "player_reception_yds", "player_pass_yds", "player_rush_yds"]
 
@@ -40,9 +44,26 @@ def is_soccer(sport: str) -> bool:
     return sport.startswith("soccer_")
 
 
+def daily_cap(settings, db: DB, now=None) -> int:
+    """Today's credit budget. The free plan is a monthly allowance, so quiet weekdays leave room for busy weekends:
+    what's left this month spread over the days left, never more than double the configured cap, never under 4."""
+    base = settings.daily_credit_cap
+    row = db.one("SELECT remaining FROM credits WHERE remaining IS NOT NULL ORDER BY id DESC LIMIT 1")
+    if not row or base >= 1000:
+        return base
+    now = now or utcnow()
+    days_left = calendar.monthrange(now.year, now.month)[1] - now.day + 1
+    spent = db.one("SELECT COALESCE(SUM(cost),0) AS c FROM credits WHERE local_day=?", (local_day(settings.timezone, now),))["c"]
+    return int(max(4, min(base * 2, (row["remaining"] + spent) / days_left)))
+
+
 class OddsClient:
     def __init__(self, settings, db: DB, transport=get_json):
         self.s, self.db, self.transport = settings, db, transport
+        self.extra = 0  # credits a manual run may spend past today's budget
+
+    def cap(self) -> int:
+        return daily_cap(self.s, self.db) + self.extra
 
     def credits_today(self) -> int:
         row = self.db.one("SELECT COALESCE(SUM(cost),0) AS c FROM credits WHERE local_day=?", (local_day(self.s.timezone),))
@@ -55,9 +76,10 @@ class OddsClient:
     def _get(self, path: str, params: dict, cost: int, what: str, extra_cap: int = 0):
         if not self.s.odds_api_key:
             raise SourceError("ODDS_API_KEY is not set")
-        spent = self.credits_today()
-        if spent + cost > self.s.daily_credit_cap + extra_cap:
-            raise BudgetError(f"Daily odds budget reached ({spent}/{self.s.daily_credit_cap} credits)")
+        spent, cap = self.credits_today(), self.cap()
+        if spent + cost > cap + extra_cap:
+            raise BudgetError(f"Daily odds budget reached ({spent}/{cap} credits)" if extra_cap >= 0
+                              else f"Holding {-extra_cap} credits for this afternoon's price refresh ({spent}/{cap} used)")
         last = self.remaining()
         if last.get("remaining") is not None and last["remaining"] < cost:
             raise BudgetError("The Odds API reports no credits left this month")
@@ -77,16 +99,17 @@ class OddsClient:
         keys = list(dict.fromkeys(list(getattr(self.s, "my_books", ["bovada"])) + list(self.s.bookmakers)))
         return ",".join(keys[:10])
 
-    def odds(self, sport: str, markets: list[str] | None = None) -> list[dict]:
+    def odds(self, sport: str, markets: list[str] | None = None, reserve: int = 0) -> list[dict]:
+        """`reserve`: credits to leave unspent for something more important later today."""
         markets = markets or SPORT_INFO[sport]["markets"]
-        info = SPORT_INFO.get(sport, {"window_h": 48})
+        info = SPORT_INFO.get(sport, {"window_h": 20})
         until = utcnow() + timedelta(hours=info["window_h"])
         params = {
             "bookmakers": self.books_param(), "markets": ",".join(markets),
             "oddsFormat": "american", "dateFormat": "iso", "includeLinks": "true",
             "commenceTimeTo": until.strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
-        return self._get(f"{sport}/odds", params, len(markets), f"odds {short(sport)}")
+        return self._get(f"{sport}/odds", params, len(markets), f"odds {short(sport)}", extra_cap=-reserve)
 
     def one_game(self, sport: str, event_id: str, market: str) -> list[dict]:
         """One market for one game: 1 credit. Allowed a few credits past the daily cap, since you asked for it."""

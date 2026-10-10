@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from zoneinfo import ZoneInfo
+
 import re
 from datetime import date, datetime, timedelta
 
@@ -129,6 +131,29 @@ class Espn:
             games = []
         self._boards[key] = games
         return games
+
+    def has_games(self, sport: str, start: datetime, end: datetime) -> bool | None:
+        """Does this sport have a game starting in the window? None when ESPN can't say (unknown sport or an error),
+        so callers can fall back to fetching rather than skip a sport by mistake."""
+        path = PATHS.get(sport)
+        if not path:
+            return None
+        et = ZoneInfo("America/New_York")
+        day, last = start.astimezone(et).date(), end.astimezone(et).date()
+        extra = "&groups=80&limit=400" if sport == "americanfootball_ncaaf" else "&limit=200"
+        while day <= last:
+            try:
+                data, _ = self.t(f"{BASE}{path}/scoreboard?dates={day.strftime('%Y%m%d')}{extra}")
+            except SourceError:
+                return None
+            for e in data.get("events", []):
+                try:
+                    if start <= parse(e["date"]) <= end:
+                        return True
+                except (KeyError, ValueError):
+                    continue
+            day += timedelta(days=1)
+        return False
 
     def games_around(self, sport: str, when: datetime, days_before: int = 1, days_after: int = 1) -> list[dict]:
         d0 = when.date()

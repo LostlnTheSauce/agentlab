@@ -69,6 +69,10 @@ def dedupe_open(db: DB) -> int:
     return removed
 
 
+RESCAN_WINDOW_H = 6.5   # a rescan refreshes games starting in the next few hours (11:00 and 15:00 cover the day)
+RESCAN_RESERVE = 3      # credits held back per rescan still to come today (one sport's prices)
+
+
 class Lab:
     def __init__(self, settings, db: DB | None = None, odds: OddsClient | None = None, research: Research | None = None,
                  brain: Brain | None = None, espn: Espn | None = None):
@@ -129,20 +133,27 @@ class Lab:
         """Returns (candidates, sports fetched, notes). Stops politely when the credit budget runs out."""
         cands, fetched, notes = [], [], []
         active = self._active_sports()
-        for sport in self.s.sports:
+        reserve = self._reserve(now)  # leave room for the rescans still to come today
+        sports = list(self.s.sports)
+        if kind != "slate":  # a rescan refreshes what kicks off next, soonest first, while credits last
+            first = {sp: self._next_game(sp, now, hours=RESCAN_WINDOW_H) for sp in sports}
+            sports = sorted((sp for sp in sports if first[sp]), key=lambda sp: first[sp])
+        for sport in sports:
             if sport not in SPORT_INFO:
                 notes.append(f"{sport}: not supported yet")
                 continue
             if active is not None and sport not in active:
                 notes.append(f"{short(sport)}: out of season")
                 continue
-            if kind != "slate" and not self._has_games_soon(sport, now, hours=18):
+            if kind == "slate" and self.espn.has_games(sport, now, now + timedelta(hours=SPORT_INFO[sport]["window_h"])) is False:
+                notes.append(f"{short(sport)}: no games in the next day")  # ESPN is free; the odds call isn't
                 continue
             try:
-                events = self.odds.odds(sport)
+                events = self.odds.odds(sport, reserve=reserve)
             except BudgetError as e:
-                notes.append(str(e))
-                break
+                if str(e) not in notes:
+                    notes.append(str(e))
+                continue  # a cheaper sport further down may still fit
             except SourceError as e:
                 notes.append(f"{short(sport)}: odds unavailable ({e})")
                 continue
@@ -169,8 +180,16 @@ class Lab:
         except SourceError:
             return None
 
-    def _has_games_soon(self, sport: str, now: datetime, hours: int) -> bool:
-        return bool(self.db.one("SELECT 1 FROM events WHERE sport=? AND commence>? AND commence<?", (sport, iso(now), iso(now + timedelta(hours=hours)))))
+    def _next_game(self, sport: str, now: datetime, hours: float) -> str | None:
+        """Kickoff of this sport's next game that starts soon but hasn't yet (from the morning's fetch)."""
+        row = self.db.one("SELECT MIN(commence) AS c FROM events WHERE sport=? AND commence>? AND commence<?",
+                          (sport, iso(now + timedelta(minutes=10)), iso(now + timedelta(hours=hours))))
+        return row["c"] if row else None
+
+    def _reserve(self, now: datetime) -> int:
+        """Credits the morning slate and the pre-kickoff reads leave alone, so the afternoon rescans always get to run."""
+        hour = now.astimezone(ZoneInfo(self.s.timezone)).hour
+        return RESCAN_RESERVE * sum(1 for h in self.s.rescan_hours if h > hour)
 
     def moves(self, cands: list[dict]) -> dict:
         """Change in moneyline fair probability since the first time we saw each game."""
@@ -400,7 +419,7 @@ class Lab:
                 continue
             self.db.put(f"closing_try:{sport}", iso(now))
             try:
-                events = self.odds.odds(sport)
+                events = self.odds.odds(sport, reserve=self._reserve(now))
             except (BudgetError, SourceError) as e:
                 log.info("closing skipped for %s: %s", sport, e)
                 continue

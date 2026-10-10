@@ -74,7 +74,7 @@ class Settings:
     price_pick_edge: float = 0.0  # a "price pick" pays at least this much vs the no-vig fair price; only those get cash
     min_books: int = 3
     slate_hour: int = 8
-    rescan_hours: list[int] = field(default_factory=lambda: [12, 16])
+    rescan_hours: list[int] = field(default_factory=lambda: [11, 15])
     daily_credit_cap: int = 16
     closing_lines: bool = True
     props_enabled: bool = False
@@ -119,7 +119,7 @@ def get_settings() -> Settings:
         price_pick_edge=_float("LAB_PRICE_PICK_EDGE", 0.0),
         min_books=_int("LAB_MIN_BOOKS", 3),
         slate_hour=_int("LAB_SLATE_HOUR", 8),
-        rescan_hours=[int(h) for h in _list("LAB_RESCAN_HOURS", "12,16") if h.isdigit()],
+        rescan_hours=[int(h) for h in _list("LAB_RESCAN_HOURS", "11,15") if h.isdigit()],
         daily_credit_cap=_int("LAB_DAILY_CREDIT_CAP", 16),
         closing_lines=_bool("LAB_CLOSING_LINES", True),
         props_enabled=_bool("LAB_PROPS", False),
