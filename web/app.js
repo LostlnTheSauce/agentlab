@@ -231,7 +231,7 @@ async function checkPrice(p,b){
 }
 async function act(p,action,extra){
   try{await api('api/pick/'+encodeURIComponent(p.id),{action,...extra});await load();
-    toast({pass:'Passed',undo:'Undone',placed:'Recorded. It grades itself after the game.',grade:'Graded'}[action]||'Done')}
+    toast({pass:'Passed',undo:'Undone',placed:'Recorded. It grades itself after the game.',grade:'Graded',regrade:'Result corrected and money re-settled.'}[action]||'Done')}
   catch(e){toast(e.message,true)}
 }
 
@@ -473,6 +473,18 @@ function myBetsView(){
 }
 
 /* ---------------------------------------------------------------- history */
+/* fixing a wrong grade: which ESPN game the result came from, and buttons to re-check or set it by hand */
+const fixOpen=new Set();
+function fixHtml(b){
+  const items=(b.games||[]).filter(g=>g.pick_id).map(g=>({pid:g.pick_id,what:g.leg||b.bet,from:g.graded_from,final:g.final}));
+  if(!items.length)return '';
+  const key=b.id+'|'+b.placed_at;
+  if(!fixOpen.has(key))return `<div class="fix"><button class="linkbtn" data-fixopen="${esc(key)}">Wrong result? Fix it</button></div>`;
+  return `<div class="fix open"><b>FIX A WRONG RESULT</b>${items.map(i=>`<div class="fixrow"><div>${esc(i.what)}
+      <div class="q">${i.from?`Graded from <a href="${esc(i.from)}" target="lab-espn" rel="noopener noreferrer">this ESPN game ↗</a>${i.final?' · '+esc(i.final):''}`:'No ESPN game on file (graded by hand, or not graded yet).'}</div></div>
+      <div class="btnrow">${[['espn','RE-CHECK ESPN'],['win','SET WIN'],['loss','SET LOSS'],['push','SET PUSH']].map(([r,l])=>`<button data-fix="${r}" data-pid="${esc(i.pid)}" data-what="${esc(i.what)}">${l}</button>`).join('')}</div></div>`).join('')}
+    <button class="linkbtn" data-fixopen="${esc(key)}">Close</button></div>`;
+}
 function historyView(){
   const M=S.mine,A=M.all,box=$('history');
   const done=M.bets.filter(b=>b.status!=='open');
@@ -499,6 +511,7 @@ function historyView(){
           <div class="g">${esc(b.book)} · ${money(b.stake)}${legs.length?'':` · ${esc(b.game)} · ${esc(when(b.commence))}`}</div>
           ${legs.map(g=>`<div class="leg"><span class="pill ${g.leg_result||'passed'}">${(g.leg_result||'open').toUpperCase()}</span> ${esc(g.leg)}${g.final?`<div class="final">${esc(g.final)}</div>`:''}</div>`).join('')}
           <div class="g">Picked by ${esc(b.agents.join(', '))}${b.recommended?' · CEO real-money pick':' · your call'}${clv}</div>
+          ${fixHtml(b)}
           ${b.move?moveHtml(b):''}</div>`:''}</div>
       <div class="amt">${amt}</div></div>`};
   box.innerHTML=`<div class="score">
@@ -514,8 +527,13 @@ function historyView(){
     ${days.map(d=>`<div class="hday"><span>${esc(d.k)}</span><span class="${cls(d.net)}">${money(d.net,true)}</span></div>
       <div class="betlist">${d.bets.map(row).join('')}</div>`).join('')||'<div class="empty">Nothing here.</div>'}
     <p class="q" style="font-size:11px;margin:10px 0 0">Tap a bet for the book, tipsters, each parlay leg, and how your price compared to the closing line.</p>`;
-  box.querySelectorAll('.brow').forEach(x=>{const tog=()=>{const k=x.dataset.bet;openBets.has(k)?openBets.delete(k):openBets.add(k);historyView()};
-    x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog()}}});
+  box.querySelectorAll('.brow').forEach(x=>{const tog=e=>{if(e&&e.target.closest('.fix'))return;const k=x.dataset.bet;openBets.has(k)?openBets.delete(k):openBets.add(k);historyView()};
+    x.onclick=tog;x.onkeydown=e=>{if(e.target.closest('.fix'))return;if(e.key==='Enter'||e.key===' '){e.preventDefault();tog()}}});
+  box.querySelectorAll('[data-fixopen]').forEach(x=>x.onclick=()=>{const k=x.dataset.fixopen;fixOpen.has(k)?fixOpen.delete(k):fixOpen.add(k);historyView()});
+  box.querySelectorAll('[data-fix]').forEach(x=>x.onclick=()=>{const r=x.dataset.fix,what=x.dataset.what;
+    const msg=r==='espn'?`Throw away the saved score for "${what}" and ask ESPN again? Every bet on that game is re-graded.`
+      :`Change "${what}" to ${r==='win'?'a WIN':r==='loss'?'a LOSS':'a PUSH (money back)'}? Your money and any parlay using it are re-settled.`;
+    if(confirm(msg))act({id:x.dataset.pid},'regrade',{result:r})});
   box.querySelectorAll('[data-bf]').forEach(x=>x.onclick=()=>{betFilter=x.dataset.bf;historyView()});
 }
 

@@ -107,3 +107,40 @@ def manual_grade(db: DB, pick_id: str, result: str) -> None:
         raise ValueError("Already graded")
     db.run("UPDATE picks SET result=?, graded_at=? WHERE id=?", (result, iso(), pick_id))
     ledger.settle(db, pick_id, result)
+
+
+def regrade(db: DB, pick_id: str, result: str, espn: Espn | None = None, now: datetime | None = None) -> dict:
+    """Fix a result that was graded wrong. `result` is "espn" (throw away the saved score and ask ESPN again) or
+    "win" / "loss" / "push" (set it by hand). Every pick on the same bet moves together, the money is re-settled, and
+    any parlay with this bet as a leg is worked out again."""
+    if result not in ("espn", "win", "loss", "push"):
+        raise ValueError("Result must be espn, win, loss or push")
+    p = db.one("SELECT * FROM picks WHERE id=?", (pick_id,))
+    if not p:
+        raise ValueError("Unknown pick")
+    if p["market"] == "parlay":
+        raise ValueError("Fix the leg that is wrong; the parlay follows its legs")
+    if result == "espn":  # a wrong score affects every bet on the game
+        targets = db.all("SELECT id FROM picks WHERE event_id=? AND market!='parlay' AND result IS NOT NULL", (p["event_id"],))
+    else:
+        targets = db.all("SELECT id FROM picks WHERE event_id=? AND market=? AND selection=? AND point IS ? AND player IS ?",
+                         (p["event_id"], p["market"], p["selection"], p["point"], p["player"]))
+    ids = [t["id"] for t in targets] or [pick_id]
+    parlays = [q["id"] for q in db.all("SELECT id, legs FROM picks WHERE market='parlay' AND legs IS NOT NULL")
+               if set(json.loads(q["legs"] or "[]")) & set(ids)]
+    marks = ",".join("?" * len(ids + parlays))
+    with db.tx() as c:
+        c.execute(f"UPDATE bets SET result=NULL, profit_cents=NULL, settled_at=NULL WHERE pick_id IN ({marks})", ids + parlays)
+        c.execute(f"UPDATE picks SET result=NULL, graded_at=NULL WHERE id IN ({marks})", ids + parlays)
+        if result == "espn":
+            c.execute("UPDATE events SET status='scheduled', home_score=NULL, away_score=NULL, final_at=NULL, espn_id=NULL WHERE id=?", (p["event_id"],))
+    if result == "espn":
+        grade_pending(db, espn, now)
+    else:
+        for i in ids:
+            db.run("UPDATE picks SET result=?, graded_at=? WHERE id=?", (result, iso(now), i))
+            ledger.settle(db, i, result)
+        grade_parlays(db, now)
+    after = db.one("SELECT result FROM picks WHERE id=?", (pick_id,))["result"]
+    db.feed(f"Result corrected: {p['selection']} ({p['away']} at {p['home']}) is now {(after or 'waiting on a score').upper()}.")
+    return {"picks": len(ids), "parlays": len(parlays), "result": after}

@@ -11,6 +11,7 @@ from . import oddsmath as om
 from .agents import describe
 from .db import DB, iso, local_day, parse, utcnow
 from .board import pick_kind
+from .sources.espn import web_link
 from .explain import needs
 from .research import briefing
 from . import roster
@@ -335,9 +336,11 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
     ev_ids = list({g["event_id"] for b in bets for g in b["games"]})
     watch = {}
     if ev_ids:
-        for r in db.all("SELECT id, home, away, context, status, home_score, away_score FROM events WHERE id IN (%s)" % ",".join("?" * len(ev_ids)), ev_ids):
+        for r in db.all("SELECT id, sport, home, away, context, status, home_score, away_score, espn_id FROM events WHERE id IN (%s)" % ",".join("?" * len(ev_ids)), ev_ids):
             cx = json.loads(r["context"] or "{}")
             watch[r["id"]] = {"tv": cx.get("broadcast"), "link": cx.get("espn_link"), "venue": cx.get("venue"),
+                              # the ESPN game the result came from, so a wrong grade can be spotted and fixed
+                              "graded_from": web_link(r["sport"], r["espn_id"]) if r["status"] == "final" else None,
                               "final": final_txt(r["home"], r["away"], r["home_score"], r["away_score"]) if r["status"] == "final" else None}
     for b in bets:
         for g in b["games"]:

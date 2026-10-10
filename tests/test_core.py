@@ -257,6 +257,39 @@ class LedgerAndGrading(unittest.TestCase):
         self.assertEqual(grading.grade_parlays(self.db), 1)
         self.assertEqual(self.db.one("SELECT profit_cents FROM bets WHERE pick_id='pp'")["profit_cents"], 150)
 
+    def test_regrade_fixes_money_and_parlays(self):
+        self.insert(pick("x", market="h2h", price=150))
+        self.insert(pick("x2", agent="rhea", market="h2h", price=150, group_id="x"))   # the same bet from a second tipster
+        self.insert(pick("y", event_id="ev2", price=-110))
+        self.insert(pick("pp", agent="lydon", market="parlay", price=377, legs=["x", "y"]))
+        ledger.paper_bet(self.db, {"id": "pp", "agent": "lydon", "stake_units": 1, "price": 377}, self.s, {})
+        ledger.place_real(self.db, "x", 150, 2.00)
+        for pid, res in (("x", "win"), ("x2", "win"), ("y", "win")):
+            grading.manual_grade(self.db, pid, res)
+        grading.grade_parlays(self.db)
+        cash = lambda: sum(r["profit_cents"] for r in self.db.all("SELECT profit_cents FROM bets WHERE kind='real'"))
+        self.assertEqual(cash(), 300)
+        with self.assertRaises(ValueError):
+            grading.regrade(self.db, "pp", "loss")            # fix the leg, not the parlay
+        out = grading.regrade(self.db, "x", "loss")           # it was graded wrong
+        self.assertEqual((out["picks"], out["parlays"], out["result"]), (2, 1, "loss"))
+        self.assertEqual(cash(), -200)
+        self.assertEqual([r["result"] for r in self.db.all("SELECT result FROM picks WHERE id IN ('x','x2','pp') ORDER BY id")], ["loss", "loss", "loss"])
+        self.assertEqual(self.db.one("SELECT profit_cents FROM bets WHERE pick_id='pp'")["profit_cents"], -100)
+        # asking ESPN again: the saved score is dropped and every bet on the game is graded from the fresh one
+        self.db.run("INSERT INTO events(id,sport,home,away,commence,status,home_score,away_score,espn_id) VALUES('ev1','americanfootball_nfl','Home','Away',?,'final',10,20,'old')",
+                    (iso(NOW - timedelta(hours=6)),))
+        self.db.run("UPDATE picks SET commence=? WHERE event_id='ev1'", (iso(NOW - timedelta(hours=6)),))
+
+        class Fresh:
+            def find(self, sport, home, away, commence):
+                return {"home": "Home", "away": "Away", "home_score": 27.0, "away_score": 20.0, "completed": True, "espn_id": "new"}
+        out = grading.regrade(self.db, "x", "espn", espn=Fresh(), now=NOW)
+        self.assertEqual(out["result"], "win")
+        self.assertEqual(cash(), 300)
+        self.assertEqual(self.db.one("SELECT espn_id, home_score FROM events WHERE id='ev1'"), {"espn_id": "new", "home_score": 27.0})
+        self.assertEqual(self.db.one("SELECT result FROM picks WHERE id='pp'")["result"], "win")
+
 
 class Web(unittest.TestCase):
     def setUp(self):

@@ -135,6 +135,14 @@ a{color:var(--teal)}
 @media (max-width:520px){.riding{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .hday{display:flex;justify-content:space-between;font:11px var(--f-display);letter-spacing:.08em;color:var(--quiet);margin:16px 0 0;padding-bottom:4px;border-bottom:1px solid var(--line)}
 .hday span:first-child{color:var(--lime)}
+.fix{cursor:default;margin-top:2px}
+.fix.open{border:1px dashed var(--line);padding:8px;display:grid;gap:8px}
+.fix>b{font:10px var(--f-display);letter-spacing:.06em;color:var(--amber);font-weight:400}
+.fix .fixrow{display:grid;gap:6px;font-size:12px}
+.fix .fixrow .q{font-size:11px} .fix a{color:var(--teal)}
+.fix .btnrow{margin:0;display:flex;flex-wrap:wrap;gap:6px}
+.fix .btnrow button{font:10px var(--f-display);letter-spacing:.05em;padding:6px 8px;border:2px solid var(--line);color:var(--ink)}
+.linkbtn{font-size:11px;color:var(--quiet);text-decoration:underline;padding:2px 0;justify-self:start}
 .brow .more{display:grid;gap:4px;margin-top:6px}
 .brow .leg{font-size:12px;border-left:3px solid var(--teal);padding-left:8px}
 .brow .leg .pill{font-size:9px;padding:1px 4px}

@@ -154,6 +154,8 @@ def create_app(settings=None, db: DB | None = None) -> Flask:
                 ledger.place_real(db, pick_id, price, stake, book)
             elif action == "grade":
                 grading.manual_grade(db, pick_id, body.get("result", ""))
+            elif action == "regrade":
+                return jsonify(ok=True, **grading.regrade(db, pick_id, body.get("result", "")))
             else:
                 return jsonify(error="Unknown action"), 400
         except (ValueError, TypeError) as e:
