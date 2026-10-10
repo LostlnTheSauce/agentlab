@@ -87,10 +87,15 @@ class DB:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.tx() as db:
             db.executescript(SCHEMA)
-            for table, col in (("picks", "book TEXT"), ("picks", "prices TEXT"), ("picks", "links TEXT"), ("bets", "book TEXT")):
+            for table, col in (("picks", "book TEXT"), ("picks", "prices TEXT"), ("picks", "links TEXT"), ("bets", "book TEXT"),
+                               ("picks", "line_move REAL")):
                 have = {r[1] for r in db.execute(f"PRAGMA table_info({table})")}
                 if col.split()[0] not in have:
                     db.execute(f"ALTER TABLE {table} ADD COLUMN {col}")
+            # line_move: how far the market's fair price moved toward the pick between the pick and the close.
+            # Fill it in for picks graded before the column existed.
+            db.execute("UPDATE picks SET line_move = close_fair / fair_prob - 1 WHERE line_move IS NULL AND close_fair IS NOT NULL "
+                       "AND fair_prob > 0 AND estimated = 0 AND market != 'parlay'")
 
     @contextmanager
     def tx(self):

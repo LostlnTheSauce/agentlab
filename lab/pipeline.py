@@ -206,9 +206,9 @@ class Lab:
             return line
         recent = []
         for r in reversed(rows):
-            clv = f", CLV {r['clv'] * 100:+.1f}%" if r["clv"] is not None else ""
+            clv = f", line then moved {r['line_move'] * 100:+.1f}% your way" if r.get("line_move") is not None else ""
             recent.append(f"- {r['local_day']}: {describe(r)} ({matchup(r)}), {(r['edge'] or 0) * 100:+.1f}% vs fair at pick -> {r['result'].upper()}{clv}")
-        return (line + ".\nYour most recent graded picks (learn from them: CLV says whether you beat the closing price, "
+        return (line + ".\nYour most recent graded picks (learn from them: line move says whether the market came around to your side after you picked, "
                 "which matters more than any single win or loss):\n" + "\n".join(recent))
 
     def _make_pick(self, agent: dict, choice: dict, run_id: int, day: str, now: datetime, late: bool) -> dict:

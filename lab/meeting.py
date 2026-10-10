@@ -42,7 +42,7 @@ def due(db: DB, settings, now: datetime | None = None) -> bool:
 def week_stats(db: DB, settings, now: datetime) -> dict[str, dict]:
     since = iso(now - timedelta(days=7))
     out: dict[str, dict] = {}
-    rows = db.all("SELECT p.agent, p.result, p.clv, COALESCE(SUM(b.profit_cents),0) AS pr FROM picks p "
+    rows = db.all("SELECT p.agent, p.result, p.line_move AS clv, COALESCE(SUM(b.profit_cents),0) AS pr FROM picks p "
                   "LEFT JOIN bets b ON b.pick_id=p.id AND b.kind='paper' WHERE p.result IS NOT NULL AND p.graded_at>? GROUP BY p.id", (since,))
     for r in rows:
         s = out.setdefault(r["agent"], {"w": 0, "l": 0, "p": 0, "units": 0.0, "clv": [], "n": 0})
@@ -173,14 +173,14 @@ def shortlist(team: list[dict], season: dict, wallets: dict, settings, relaxed: 
         losing = s.get("graded", 0) >= min_graded and s.get("units", 0) <= floor and (s.get("clv") is None or s["clv"] < 0)
         bleeding = s.get("clv_n", 0) >= 8 and (s.get("clv") or 0) <= -0.01 and s.get("units", 0) < 0
         if broke or losing or bleeding:
-            reason = "real wallet is empty" if broke else f"{s['units']:+.1f}u on paper, CLV {(s.get('clv') or 0) * 100:+.1f}% over {s['graded']} bets"
+            reason = "real wallet is empty" if broke else f"{s['units']:+.1f}u on paper, line moved {(s.get('clv') or 0) * 100:+.1f}% their way over {s['graded']} bets"
             out.append({**t, "why": reason})
     return out
 
 
 def _line(t, season, week) -> str:
     s, w = season.get(t["id"], {}), week.get(t["id"])
-    wk = f"week {w['w']}-{w['l']}{'-' + str(w['p']) if w['p'] else ''}, {w['units']:+.1f}u" + (f", CLV {w['clv'] * 100:+.1f}%" if w["clv"] is not None else "") if w else "no graded bets this week"
+    wk = f"week {w['w']}-{w['l']}{'-' + str(w['p']) if w['p'] else ''}, {w['units']:+.1f}u" + (f", line move {w['clv'] * 100:+.1f}%" if w["clv"] is not None else "") if w else "no graded bets this week"
     return f"{t['id']} = {t['name']} ({t['role']}): {wk}; season {ledger.record_line(s) if s else 'no graded bets yet'}"
 
 
@@ -299,10 +299,14 @@ def hold(lab, now: datetime | None = None, relaxed: bool = False, force: bool = 
     if s.llm_enabled:
         system = ("You are The Commish, CEO of Agent Lab: 20 AI tipsters, a risk board, and an owner who bets $1-2 on Bovada. "
                   "It's the Sunday night board meeting. Write the minutes the owner reads Monday: at most 220 words, plain text, "
-                  "short paragraphs, no bullet lists, warm but blunt, a little funny. Cover: how the firm did this week, who stood out and why "
-                  "(prefer CLV over luck), who's struggling, and your decision on the firing shortlist. You may fire at most one tipster, "
-                  "only from the shortlist, and only if it's deserved; firing nobody is fine, especially with small samples. Pick an MVP "
-                  "only if someone earned it. If you fire someone, say it in the minutes and mention that a replacement starts Monday.")
+                  "short paragraphs, no bullet lists, warm but blunt, a little funny. Cover: how the firm did this week, who stood out and why, "
+                  "who's struggling, and your decision on the firing shortlist. Judge tipsters on LINE MOVE, not luck: line move is "
+                  "how far the market's price moved toward their picks after they made them (positive = they were ahead of the "
+                  "market, around zero = no better than the market, negative = the market moved against them). Call it "
+                  "'line move' in the minutes. You may fire at most one tipster, "
+                  "only from the shortlist, and only if it's deserved; firing nobody is fine, especially with small samples. The MVP is "
+                  "the tipster with the best line move this week on at least two graded bets (not simply the most units), and "
+                  "only if it is positive. If you fire someone, say it in the minutes and mention that a replacement starts Monday.")
         user = ("Tipsters (id = name: this week; season):\n" + "\n".join(_line(t, season, wk) for t in team)
                 + "\n\nFiring shortlist: " + ("; ".join(f"{t['id']} ({t['why']})" for t in candidates) or "nobody qualifies"))
         got = brain._ask(s.ceo_model, s.ceo_effort, system, user, MEETING_SCHEMA(ids, fire_ids))
@@ -310,7 +314,9 @@ def hold(lab, now: datetime | None = None, relaxed: bool = False, force: bool = 
             report, mvp, fire, reason = got["report"].strip(), got["mvp"], got["fire"], got["fire_reason"].strip()
     if not report:
         graded = [t for t in team if wk.get(t["id"], {}).get("n", 0) >= 2]
-        best = max(graded, key=lambda t: wk[t["id"]]["units"], default=None)
+        # MVP: the best line move this week, falling back to units while there are no closing prices yet
+        ahead = [t for t in graded if (wk[t["id"]]["clv"] or 0) > 0]
+        best = max(ahead, key=lambda t: wk[t["id"]]["clv"], default=None) or max(graded, key=lambda t: wk[t["id"]]["units"], default=None)
         worst = min(candidates, key=lambda t: (season.get(t["id"], {}).get("clv") or 0, season.get(t["id"], {}).get("units", 0)), default=None)
         mvp = best["id"] if best and wk[best["id"]]["units"] > 0 else ""
         fire = worst["id"] if worst else ""
@@ -319,7 +325,7 @@ def hold(lab, now: datetime | None = None, relaxed: bool = False, force: bool = 
         report = (f"Board meeting, week ending {week}. The firm went {total:+.1f} units on paper this week across "
                   f"{sum(v['n'] for v in wk.values())} graded bets. "
                   + (f"MVP: {best['name']}, {wk[best['id']]['units']:+.1f}u. " if mvp else "No MVP this week; nobody separated from the pack. ")
-                  + (f"{worst['name']} is out ({reason}). A replacement starts Monday." if fire else "Nobody gets fired. Samples are still small, and we judge on CLV, not one bad weekend."))
+                  + (f"{worst['name']} is out ({reason}). A replacement starts Monday." if fire else "Nobody gets fired. Samples are still small, and we judge on line move, not one bad weekend."))
     hired = None
     if fire and fire in fire_ids:
         fired = next(t for t in candidates if t["id"] == fire)

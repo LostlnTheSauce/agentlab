@@ -12,6 +12,15 @@ from .sources.espn import Espn, similarity
 from .sources.odds import SPORT_INFO
 
 
+def line_move(p: dict, close_fair: float | None) -> float | None:
+    """Did the market move toward this pick after it was made? The closing fair chance of the pick winning, relative to
+    the fair chance when it was picked: +0.02 means the market came 2% the tipster's way. Unlike price-vs-close (clv),
+    this doesn't charge the tipster for the bookmaker's cut, so zero really means "no better than the market"."""
+    if not close_fair or not p.get("fair_prob") or p.get("estimated"):
+        return None
+    return close_fair / p["fair_prob"] - 1
+
+
 def closing(db: DB, p: dict) -> tuple[int | None, float | None]:
     """Last consensus seen before kickoff, if it was captured after the pick was made."""
     row = db.one(
@@ -60,8 +69,8 @@ def grade_pending(db: DB, espn: Espn | None = None, now: datetime | None = None)
                 continue
         close_price, close_fair = (None, None) if p["player"] else closing(db, p)
         clv = om.edge(close_fair, p["price"]) if close_fair else None
-        db.run("UPDATE picks SET result=?, graded_at=?, actual=?, close_price=?, close_fair=?, clv=? WHERE id=?",
-               (result, iso(now), actual, close_price, close_fair, clv, p["id"]))
+        db.run("UPDATE picks SET result=?, graded_at=?, actual=?, close_price=?, close_fair=?, clv=?, line_move=? WHERE id=?",
+               (result, iso(now), actual, close_price, close_fair, clv, line_move(p, close_fair), p["id"]))
         ledger.settle(db, p["id"], result)
         done += 1
     done += grade_parlays(db, now)

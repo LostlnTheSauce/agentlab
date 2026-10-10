@@ -94,7 +94,7 @@ def build_state(settings, db: DB) -> dict:
         return {"bets": r["n"], "w": r["w"] or 0, "l": r["l"] or 0, "p": r["p"] or 0, "profit": r["pr"] / 100,
                 "staked": r["st"] / 100, "open": r["op"] / 100, "roi": (r["pr"] / r["st"]) if r["st"] else None}
 
-    clv = db.one("SELECT AVG(clv) c, COUNT(clv) n FROM picks WHERE clv IS NOT NULL")
+    clv = db.one("SELECT AVG(line_move) c, COUNT(line_move) n FROM picks WHERE line_move IS NOT NULL")
     seeded = settings.wallet_dollars * len(everyone)  # every hire comes with a fresh wallet
 
     def equity(kind):
@@ -187,7 +187,7 @@ MARKET_LABEL = {"h2h": "Moneyline", "spreads": "Spread", "totals": "Total", "par
 
 def splits(db: DB, settings) -> dict[str, list[dict]]:
     """Each tipster's graded record by sport and bet type."""
-    rows = db.all("SELECT p.agent, p.sport, p.market, p.player, p.result, p.clv, COALESCE(SUM(b.profit_cents),0) pr FROM picks p "
+    rows = db.all("SELECT p.agent, p.sport, p.market, p.player, p.result, p.line_move AS clv, COALESCE(SUM(b.profit_cents),0) pr FROM picks p "
                   "LEFT JOIN bets b ON b.pick_id=p.id AND b.kind='paper' WHERE p.result IS NOT NULL GROUP BY p.id")
     acc: dict[tuple, dict] = {}
     for r in rows:

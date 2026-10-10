@@ -50,7 +50,7 @@ function header(){
     $('bigNum').textContent=money(P.seeded+P.profit);
     $('bigChg').textContent=pct(P.profit/P.seeded);$('bigChg').className='chg '+cls(P.profit);
     $('subLine').textContent=`on ${money(P.seeded)} seeded (${money(S.config.wallet)} per tipster) · ${money(P.open)} riding on open bets`;
-    $('s1l').textContent='AVG CLV';$('s1').textContent=S.paper.clv_n?pct(S.paper.clv):'—';$('s1').className=cls(S.paper.clv);
+    $('s1l').textContent='LINE MOVE';$('s1').textContent=S.paper.clv_n?pct(S.paper.clv):'—';$('s1').className=cls(S.paper.clv);
     $('s2l').textContent='RECORD';$('s2').textContent=`${P.w}–${P.l}${P.p?'–'+P.p:''}`;
     $('s3l').textContent='TODAY';$('s3').textContent=`${today.length} picks · ${real.length} real`;
   }else{
@@ -95,7 +95,7 @@ function office(){
     bubble:a&&a.paper.graded?{text:units(a.paper.units),tone:Math.sign(Math.round(a.paper.units*10))}:{text:'FIRED',tone:-1}}});
   const latest=(S.cooler||[])[0];let seen='';try{seen=localStorage.getItem('lab-cooler-seen')||''}catch(e){}
   Office.set({cooler:{fresh:!!latest&&latest.created_at>seen},desks:S.roster.desks,people:list,staff,jail,screen:{title:'FIRM BANKROLL · PAPER',big:money(P.seeded+P.profit),up:P.profit>=0,
-    line1:`${pct(P.profit/P.seeded)}  CLV ${S.paper.clv_n?pct(S.paper.clv):'—'}`,line2:`${today.length} PICKS TODAY · ${today.filter(p=>p.real_pick).length} REAL`,series,board:bd}});
+    line1:`${pct(P.profit/P.seeded)}  LINE ${S.paper.clv_n?pct(S.paper.clv):'—'}`,line2:`${today.length} PICKS TODAY · ${today.filter(p=>p.real_pick).length} REAL`,series,board:bd}});
 }
 function openSheet(id){
   const sh=$('sheet');
@@ -116,7 +116,7 @@ function openSheet(id){
     if(latest){seenPicks[id]=latest;try{localStorage.setItem('lab-seen-picks',JSON.stringify(seenPicks))}catch(e){}office()}}
   if(t){const a=S.agents.find(x=>x.id===id),p=a.paper;
     nums.hidden=false;
-    nums.innerHTML=p.graded?`<span>${p.w}–${p.l}${p.p?'–'+p.p:''}</span><span class="${cls(p.units)}">${units(p.units)}</span><span class="${cls(p.clv)}">CLV ${pct(p.clv)}</span><span>real wallet ${money(a.real_wallet)}</span>`
+    nums.innerHTML=p.graded?`<span>${p.w}–${p.l}${p.p?'–'+p.p:''}</span><span class="${cls(p.units)}">${units(p.units)}</span><span class="${cls(p.clv)}">LINE MOVE ${p.clv==null?'—':pct(p.clv)}</span><span>real wallet ${money(a.real_wallet)}</span>`
       :`<span class="q">No graded bets yet</span><span>real wallet ${money(a.real_wallet)}</span>`;
     const mineAll=a.recent||[];
     picks.innerHTML=mineAll.length?'<b class="ph">RECENT PICKS</b>'+recentHtml(a):`<div class="pickline">${jailed?'Serving time. No desk, no new picks; any open bets still get graded.':'Nothing today that clears the price bar.'}</div>`;
@@ -314,7 +314,7 @@ function tipsters(){
   /* one set of numbers per mode: paper = every pick, real = only bets you put cash on */
   const num=a=>real?{n:a.real.w+a.real.l+a.real.p,w:a.real.w,l:a.real.l,p:a.real.p,profit:a.real.profit,roi:a.real.roi,clv:a.real.clv,last10:a.real.last10||[],open:a.real.open}
     :{n:a.paper.graded,w:a.paper.w,l:a.paper.l,p:a.paper.p,profit:a.paper.units,roi:a.paper.roi,clv:a.paper.clv,last10:a.paper.last10,open:a.paper.open};
-  const sorts=[['units',real?'PROFIT':'UNITS'],['rec','RECORD'],['roi','ROI'],['clv','CLV'],['real','WALLET']];
+  const sorts=[['units',real?'PROFIT':'UNITS'],['rec','RECORD'],['roi','ROI'],['clv','LINE MOVE'],['real','WALLET']];
   const key={units:x=>x.s.n?x.s.profit:-1e6,clv:x=>x.s.clv??-9,roi:x=>x.s.roi??-9,rec:x=>x.s.n?x.s.w-x.s.l:-1e6,real:x=>x.a.real_wallet}[sortKey];
   const color={SHARP:'#c7f78c',HOT:'#f0c281',STEADY:'#5ed3b4',ROOKIE:'#94aba1',BENCHMARK:'#94aba1','ON NOTICE':'#ff8e80',BROKE:'#ff8e80'};
   $('tipPaper').classList.toggle('on',!real);$('tipReal').classList.toggle('on',real);
@@ -329,7 +329,7 @@ function tipsters(){
     row.innerHTML=`<div class="thead"><canvas width="13" height="16"></canvas>
         <div class="who"><b>${esc(t.name)}</b><div class="q">${esc(t.role)} · ${esc(desk)}</div></div>
         <div class="tnum"><span class="${s.n?cls(s.profit):'q'}">${big}</span><small>${s.n?`${s.w}–${s.l}${s.p?'–'+s.p:''}`:real?'no cash bets yet':'no results yet'}</small></div></div>
-      <div class="tmeta"><span>ROI <b class="${cls(s.roi)}">${s.roi==null?'—':pct(s.roi)}</b></span><span>CLV <b class="${cls(s.clv)}">${s.clv==null?'—':pct(s.clv)}</b></span>
+      <div class="tmeta"><span>ROI <b class="${cls(s.roi)}">${s.roi==null?'—':pct(s.roi)}</b></span><span>LINE MOVE <b class="${cls(s.clv)}">${s.clv==null?'—':pct(s.clv)}</b></span>
         <div class="form">${dots}</div>
         <span>WALLET <b class="${a.real_wallet<S.config.wallet?'down':a.real_wallet>S.config.wallet?'up':''}">${money(a.real_wallet)}</b></span>
         <span class="status" style="color:${color[a.status]};border-color:${color[a.status]}">${a.status}</span></div>
@@ -347,15 +347,15 @@ function tipsters(){
   $('unitNote').textContent=real?`only bets you put cash on · wallets start at ${money(S.config.wallet)}`:`every pick, on paper · 1 unit = ${money(S.config.unit)}`;
   const notice=S.agents.filter(a=>a.status==='ON NOTICE').map(a=>S.roster.tipsters.find(t=>t.id===a.id).name);
   const broke=S.agents.filter(a=>a.status==='BROKE').map(a=>S.roster.tipsters.find(t=>t.id===a.id).name);
-  $('tipNotice').innerHTML=[notice.length?`<b class="down">On notice:</b> ${esc(notice.join(', '))}. Paper only until their results and CLV recover.`:'',
+  $('tipNotice').innerHTML=[notice.length?`<b class="down">On notice:</b> ${esc(notice.join(', '))}. Paper only until their results and line move recover.`:'',
     broke.length?`<b class="down">Broke:</b> ${esc(broke.join(', '))}. Their real wallet is empty; they keep betting on paper.`:'',
-    'Tap a tipster for their method and picks. CLV (closing line value) says whether a tipster got a better price than where the line closed. Over a few weeks it separates skill from luck much faster than win–loss. Coin Flip picks at random: anyone below him isn\'t adding anything.'].filter(Boolean).join('<br><br>');
+    'Tap a tipster for their method and picks. LINE MOVE is how far the market price moved toward a tipster’s picks after they made them. Positive means they were ahead of the market, around zero means no better than the market, negative means the market moved against them. Over a few weeks it separates skill from luck much faster than win–loss, and it decides the MVP and who gets fired. Coin Flip picks at random: anyone below him isn\'t adding anything.'].filter(Boolean).join('<br><br>');
 }
 
 const openRows=new Set();
 function splitsTable(a){
   if(!a.splits||!a.splits.length)return '<div class="q">No graded bets yet.</div>';
-  return `<table class="splits"><tr><th>SPORT</th><th>BET TYPE</th><th>RECORD</th><th>UNITS</th><th>CLV</th></tr>${a.splits.map(s=>`<tr><td>${esc(s.sport)}</td><td>${esc(s.market)}</td>
+  return `<table class="splits"><tr><th>SPORT</th><th>BET TYPE</th><th>RECORD</th><th>UNITS</th><th>LINE MOVE</th></tr>${a.splits.map(s=>`<tr><td>${esc(s.sport)}</td><td>${esc(s.market)}</td>
     <td class="n">${s.w}–${s.l}${s.p?'–'+s.p:''}</td><td class="n ${cls(s.units)}">${units(s.units)}</td><td class="n ${cls(s.clv)}">${pct(s.clv)}</td></tr>`).join('')}</table>`;
 }
 const hr12=h=>h===0?'12 AM':h<12?h+' AM':h===12?'12 PM':(h-12)+' PM';
@@ -386,7 +386,7 @@ function jailBox(byAgent){
     const rep=[...S.roster.tipsters,...j].find(x=>x.id===t.replaced_by);
     return `<div class="jailcard"><canvas width="13" height="16" data-id="${esc(t.id)}"></canvas><div><b>${esc(t.name)}</b> <span class="q">${esc(t.role)}</span>
       <div class="g">Fired ${esc(new Date(t.fired_at).toLocaleDateString([], {month:'short',day:'numeric'}))}: ${esc(t.fired_note||'')}${rep?` · replaced by ${esc(rep.name)}`:''}</div>
-      ${p&&p.graded?`<div class="g">Final paper record ${p.w}–${p.l}${p.p?'–'+p.p:''}, <span class="${cls(p.units)}">${units(p.units)}</span>, CLV <span class="${cls(p.clv)}">${pct(p.clv)}</span>${p.open?` · ${p.open} bets still riding`:''}</div>`:''}</div></div>`}).join('')}</div>`;
+      ${p&&p.graded?`<div class="g">Final paper record ${p.w}–${p.l}${p.p?'–'+p.p:''}, <span class="${cls(p.units)}">${units(p.units)}</span>, line move <span class="${cls(p.clv)}">${p.clv==null?'—':pct(p.clv)}</span>${p.open?` · ${p.open} bets still riding`:''}</div>`:''}</div></div>`}).join('')}</div>`;
   box.querySelectorAll('canvas').forEach(c=>{const t=j.find(x=>x.id===c.dataset.id);if(t)sprite(c,t.look)});
 }
 
@@ -489,7 +489,7 @@ function historyView(){
     const finals=(b.games||[]).filter(g=>g.final);
     const legs=(b.games||[]).filter(g=>g.leg);
     const short=legs.length?`${legs.filter(g=>g.leg_result==='win').length} of ${legs.length} legs won`:finals[0]?finals[0].final:'';
-    const clv=b.clv!=null?` · CLV <span class="${cls(b.clv)}">${pct(b.clv)}</span>`:'';
+    const clv=b.clv!=null?` · your price vs the close <span class="${cls(b.clv)}">${pct(b.clv)}</span>`:'';
     return `<div class="brow ${b.status}${isOpen?' open2':''}" data-bet="${esc(bkey)}" role="button" tabindex="0" aria-expanded="${isOpen}"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
       <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>
         ${short?`<div class="${legs.length?'g':'final'}">${esc(short)}</div>`:''}

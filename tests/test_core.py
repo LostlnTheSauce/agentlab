@@ -66,6 +66,13 @@ class OddsMath(unittest.TestCase):
         self.assertEqual(g("totals", "Under", 45.0, "Home", "Away", 24, 21), "push")
         self.assertEqual(om.grade_prop("Over", 6.5, 7), "win")
 
+    def test_line_move(self):
+        from lab.grading import line_move
+        self.assertAlmostEqual(line_move({"fair_prob": 0.50}, 0.52), 0.04)   # market came the pick's way
+        self.assertAlmostEqual(line_move({"fair_prob": 0.50}, 0.49), -0.02)  # market moved against it
+        self.assertIsNone(line_move({"fair_prob": 0.50, "estimated": 1}, 0.52))
+        self.assertIsNone(line_move({"fair_prob": 0.50}, None))
+
     def test_parlay_and_payouts(self):
         self.assertEqual(om.parlay_result(["win", "loss"], [-110, -110])[0], "loss")
         r, d = om.parlay_result(["win", "push"], [150, -110])

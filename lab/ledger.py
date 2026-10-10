@@ -52,7 +52,7 @@ def agent_stats(db: DB, settings) -> dict[str, dict]:
                 s["real_l"] += 1
             else:
                 s["real_p"] += 1
-    for r in db.all("SELECT agent, result, clv FROM picks WHERE result IS NOT NULL ORDER BY graded_at"):
+    for r in db.all("SELECT agent, result, line_move AS clv FROM picks WHERE result IS NOT NULL ORDER BY graded_at"):
         s = stats.get(r["agent"])
         if not s:
             continue
@@ -61,7 +61,7 @@ def agent_stats(db: DB, settings) -> dict[str, dict]:
             s["clv"] = ((s["clv"] or 0) * s["clv_n"] + r["clv"]) / (s["clv_n"] + 1)
             s["clv_n"] += 1
     # the same form and closing-line read, but only for bets that had cash on them
-    for r in db.all("SELECT b.agent, b.result, p.clv FROM bets b JOIN picks p ON p.id=b.pick_id "
+    for r in db.all("SELECT b.agent, b.result, p.line_move AS clv FROM bets b JOIN picks p ON p.id=b.pick_id "
                     "WHERE b.kind='real' AND b.result IS NOT NULL ORDER BY b.settled_at, b.id"):
         s = stats.get(r["agent"])
         if not s:
@@ -83,7 +83,7 @@ def agent_stats(db: DB, settings) -> dict[str, dict]:
 def record_line(s: dict) -> str:
     if not s["graded"]:
         return "no graded bets yet"
-    clv = f", average CLV {s['clv'] * 100:+.1f}%" if s["clv"] is not None else ""
+    clv = f", line moved {s['clv'] * 100:+.1f}% their way on average" if s["clv"] is not None else ""
     return f"{s['w']}-{s['l']}{'-' + str(s['p']) if s['p'] else ''}, {s['units']:+.1f} units on paper{clv}"
 
 
