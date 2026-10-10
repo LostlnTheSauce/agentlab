@@ -614,8 +614,9 @@ function ledgerView(){
 $('rules').addEventListener('click',async e=>{if(e.target.id==='alertTest'){try{await api('api/alert-test',{});toast('Test alert sent. Check your phone.')}catch(err){toast(err.message,true)}return}
   if(e.target.id!=='qbToggle')return;quickBet=!quickBet;try{localStorage.setItem('lab-quickbet',quickBet?'on':'off')}catch(_){}ledgerView();toast(quickBet?'Quick bet on':'Back to manual betting')});
 $('needs').addEventListener('click',e=>{const b=e.target.closest('button[data-grade]');if(b)act({id:b.dataset.id},'grade',{result:b.dataset.grade})});
-async function run(kind){try{await api('api/run',{kind});toast(kind==='grade'?'Grading…':'The desks are on it. This takes a minute or two.');setTimeout(load,4000)}catch(e){toast(e.message,true)}}
-$('runSlate').onclick=()=>run('slate');$('runRescan').onclick=()=>run('rescan');$('runGrade').onclick=()=>run('grade');
+async function run(kind,fresh){try{await api('api/run',{kind,fresh:!!fresh});toast(kind==='grade'?'Grading…':'The desks are on it. This takes a minute or two.');setTimeout(load,4000)}catch(e){toast(e.message,true)}}
+$('runSlate').onclick=()=>run('slate');
+$('runFresh').onclick=()=>{if(confirm("Redo today's slate with fresh prices? Today's picks you haven't acted on are cleared and the desks pick again. Bets you placed or passed on are kept. This can use up to 15 extra odds credits."))run('slate',true)};$('runRescan').onclick=()=>run('rescan');$('runGrade').onclick=()=>run('grade');
 
 /* ---------------------------------------------------------------- shell */
 function ticker(){
