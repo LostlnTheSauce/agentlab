@@ -482,6 +482,11 @@ class Lab:
                 if self.grade(now):
                     did.append("grade")
             from . import meeting
+            try:
+                if meeting.backfill_cash(self):
+                    did.append("cash-meeting")
+            except Exception:
+                log.exception("cash meeting backfill failed")
             if meeting.due(self.db, self.s, now):
                 self.grade(now)  # settle the weekend before judging it
                 if meeting.hold(self, now):

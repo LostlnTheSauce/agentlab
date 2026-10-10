@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -91,6 +92,30 @@ class Meetings(unittest.TestCase):
         st = build_state(self.s, self.lab.db)
         self.assertEqual([t["id"] for t in st["roster"]["jail"]], ["connie"])
         self.assertEqual(st["meetings"][0]["detail"]["fired_name"], "Connie")
+
+    def test_cash_half_counts_only_real_money(self):
+        self._losing("connie", n=3)  # paper only: must not show up in the cash meeting
+        db = self.lab.db
+        for pid, agent, res, profit, ceo in (("r1", "quinn", "win", 150, 1), ("r2", "quinn", "loss", -100, 1), ("r3", "ursula", "loss", -200, 0)):
+            db.run("INSERT INTO picks(id,local_day,created_at,agent,event_id,sport,home,away,commence,market,selection,price,fair_prob,edge,stake_units,result,graded_at,real_pick) "
+                   "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                   (pid, "2026-10-01", iso(NOW - timedelta(days=2)), agent, "e" + pid, "americanfootball_nfl", "H", "A", iso(NOW - timedelta(days=2)),
+                    "h2h", "H", 150, 0.5, 0.02, 1, res, iso(NOW - timedelta(days=1)), ceo))
+            db.run("INSERT INTO bets(pick_id,kind,agent,stake_cents,price,placed_at,result,profit_cents,settled_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                   (pid, "real", agent, abs(profit) if res == "loss" else 100, 150, iso(NOW - timedelta(days=2, minutes=-int(pid[1]))), res, profit, iso(NOW - timedelta(days=1))))
+        m = meeting.hold(self.lab, now=NOW)
+        cash = json.loads(m["detail"])["cash"]
+        self.assertEqual((cash["week"]["all"]["n"], cash["week"]["all"]["w"], cash["week"]["all"]["l"], cash["week"]["all"]["profit"]), (3, 1, 2, -1.5))
+        self.assertEqual((cash["week"]["ceo"]["n"], cash["week"]["own"]["n"]), (2, 1))
+        self.assertEqual(set(cash["week"]["agents"]), {"quinn", "ursula"})
+        self.assertEqual(cash["mvp_name"], "Quinn")  # +$0.50 in cash
+        self.assertIn("3 real bets", cash["report"])
+        # a meeting held before cash meetings existed gets its cash half added once
+        d = json.loads(m["detail"]); d.pop("cash")
+        db.run("UPDATE meetings SET detail=? WHERE week=?", (json.dumps(d), m["week"]))
+        self.assertTrue(meeting.backfill_cash(self.lab))
+        self.assertFalse(meeting.backfill_cash(self.lab))
+        self.assertEqual(json.loads(db.one("SELECT detail FROM meetings")["detail"])["cash"]["week"]["all"]["n"], 3)
 
     def test_small_samples_and_protected_are_safe(self):
         self._losing("connie", n=5)

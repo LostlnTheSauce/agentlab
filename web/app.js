@@ -365,9 +365,19 @@ function meetingBox(){
   const chips=m=>[m.detail.mvp_name?`<span class="pill win">MVP ${esc(m.detail.mvp_name)}</span>`:'',m.detail.fired_name?`<span class="pill loss">FIRED ${esc(m.detail.fired_name)}</span>`:'',
     m.detail.hired_name?`<span class="pill real">HIRED ${esc(m.detail.hired_name)} · ${esc(m.detail.hired_role)}</span>`:''].join('');
   const wk=w=>new Date(w+'T12:00').toLocaleDateString([], {month:'short',day:'numeric'});
-  const [m,...old]=ms;
-  box.innerHTML=`<div class="meeting"><b class="mh">BOARD MEETING · WEEK ENDING ${esc(wk(m.week)).toUpperCase()}</b><div class="chips" style="justify-content:flex-start">${chips(m)}</div><p>${esc(m.report)}</p>
-    ${old.length?`<details><summary>EARLIER MINUTES</summary>${old.map(o=>`<div class="oldmin"><b>Week ending ${esc(wk(o.week))}</b><div class="chips" style="justify-content:flex-start">${chips(o)}</div><p>${esc(o.report)}</p></div>`).join('')}</details>`:''}</div>`;
+  const [m,...old]=ms,real=mode==='real';
+  /* the cash half: only bets you put real money on that week */
+  const rec=t=>`${t.w}–${t.l}${t.p?'–'+t.p:''}`;
+  const cashChips=x=>{const c=x.detail.cash,t=c&&c.week&&c.week.all;if(!t||!t.n)return '';
+    return `<span class="pill ${t.profit>0?'win':t.profit<0?'loss':'passed'}">${rec(t)} · ${money(t.profit,true)}</span>${c.mvp_name?`<span class="pill real">CASH MVP ${esc(c.mvp_name)}</span>`:''}`};
+  const cashBody=x=>{const c=x.detail.cash;if(!c)return `<p class="q">The cash meeting starts with the next Sunday meeting.</p>`;
+    const w=c.week||{},line=(l,t)=>t&&t.n?`<div><b>${l}</b> ${rec(t)} · <span class="${cls(t.profit)}">${money(t.profit,true)}</span></div>`:'';
+    return `<p>${esc(c.report)}</p>${w.all&&w.all.n?`<div class="cashsplit">${line('CEO PICKS',w.ceo)}${line('YOUR CALLS',w.own)}</div>`:''}`};
+  const body=x=>real?cashBody(x):`<p>${esc(x.report)}</p>`,ch=x=>real?cashChips(x):chips(x);
+  box.innerHTML=`<div class="meeting"><b class="mh">${real?'CASH':'PAPER'} BOARD MEETING · WEEK ENDING ${esc(wk(m.week)).toUpperCase()}</b>
+    <div class="q" style="font-size:11px">${real?'Only the bets you put real money on. Switch to PAPER for the firm-wide meeting and firings.':'Every pick the desks made, on paper. Switch to REAL CASH for the meeting about your money.'}</div>
+    <div class="chips" style="justify-content:flex-start">${ch(m)}</div>${body(m)}
+    ${old.length?`<details><summary>EARLIER MINUTES</summary>${old.map(o=>`<div class="oldmin"><b>Week ending ${esc(wk(o.week))}</b><div class="chips" style="justify-content:flex-start">${ch(o)}</div>${body(o)}</div>`).join('')}</details>`:''}</div>`;
 }
 function jailBox(byAgent){
   const j=S.roster.jail||[],box=$('jailBox');

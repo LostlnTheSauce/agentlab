@@ -1,5 +1,8 @@
 """The Sunday night board meeting: weekly report, an MVP, at most one firing, and a new hire for the empty seat.
 
+It has two halves. The paper meeting covers every pick the firm made and decides the firing (paper has the
+sample size). The cash meeting covers only the bets the owner put real money on that week.
+
 Firing is only allowed from a deterministic shortlist (enough graded bets, and losing money with negative CLV,
 or an empty real wallet), so a bad week of luck alone can't get anyone fired. The Commish decides whether to
 fire from that shortlist, and designs the replacement from a menu of safe strategy parts.
@@ -15,7 +18,8 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from . import ledger, notify, roster
-from .db import DB, iso, utcnow
+from .agents import describe
+from .db import DB, iso, parse, utcnow
 from .roster import CFB, MLB, NBA, NFL, SOCCER
 from .strategies import MARKETS, SIDES, SIGNALS, validate_params
 
@@ -50,6 +54,112 @@ def week_stats(db: DB, settings, now: datetime) -> dict[str, dict]:
     for s in out.values():
         s["clv"] = sum(s["clv"]) / len(s["clv"]) if s["clv"] else None
     return out
+
+
+def cash_week(db: DB, now: datetime) -> dict:
+    """The owner's real-money bets that settled in the 7 days before `now`. A bet merged across tipsters is one
+    bet in the totals and a share on each tipster's line."""
+    rows = db.all("SELECT b.agent, b.stake_cents, b.profit_cents, b.result, b.placed_at, b.price AS got, p.* FROM bets b JOIN picks p ON p.id=b.pick_id "
+                  "WHERE b.kind='real' AND b.result IS NOT NULL AND b.settled_at>? AND b.settled_at<=? ORDER BY b.settled_at, b.id",
+                  (iso(now - timedelta(days=7)), iso(now)))
+    bets: dict[tuple, dict] = {}
+    by_agent: dict[str, dict] = {}
+    for r in rows:
+        k = (r["placed_at"], r["group_id"] or r["id"])
+        b = bets.setdefault(k, {"bet": describe({**r, "price": r["got"]}), "result": r["result"], "stake": 0.0, "profit": 0.0, "ceo": False})
+        b["stake"] += r["stake_cents"] / 100
+        b["profit"] += (r["profit_cents"] or 0) / 100
+        b["ceo"] = b["ceo"] or bool(r["real_pick"])
+        a = by_agent.setdefault(r["agent"], {"w": 0, "l": 0, "p": 0, "profit": 0.0, "staked": 0.0})
+        a[{"win": "w", "loss": "l"}.get(r["result"], "p")] += 1
+        a["profit"] += (r["profit_cents"] or 0) / 100
+        a["staked"] += r["stake_cents"] / 100
+
+    def tally(items):
+        t = {"n": len(items), "w": sum(b["result"] == "win" for b in items), "l": sum(b["result"] == "loss" for b in items),
+             "staked": round(sum(b["stake"] for b in items), 2), "profit": round(sum(b["profit"] for b in items), 2)}
+        t["p"] = t["n"] - t["w"] - t["l"]
+        return t
+
+    items = list(bets.values())
+    for a in by_agent.values():
+        a["profit"], a["staked"] = round(a["profit"], 2), round(a["staked"], 2)
+    ranked = sorted(items, key=lambda b: b["profit"])
+    return {"all": tally(items), "ceo": tally([b for b in items if b["ceo"]]), "own": tally([b for b in items if not b["ceo"]]),
+            "agents": by_agent,
+            "best": {"bet": ranked[-1]["bet"], "profit": round(ranked[-1]["profit"], 2)} if items and ranked[-1]["profit"] > 0 else None,
+            "worst": {"bet": ranked[0]["bet"], "profit": round(ranked[0]["profit"], 2)} if items and ranked[0]["profit"] < 0 else None}
+
+
+def _rec(t: dict) -> str:
+    return f"{t['w']}-{t['l']}" + (f"-{t['p']}" if t["p"] else "")
+
+
+def _usd(v: float) -> str:
+    return f"{'+' if v > 0 else '-' if v < 0 else ''}${abs(v):.2f}"
+
+
+CASH_SCHEMA = lambda ids: {
+    "type": "object",
+    "properties": {"report": {"type": "string"}, "mvp": {"type": "string", "enum": ids + [""]}},
+    "required": ["report", "mvp"],
+    "additionalProperties": False,
+}
+
+
+def cash_meeting(brain, settings, db: DB, team: list[dict], now: datetime) -> dict:
+    """Minutes for the real-money half: how the owner's cash did, which tipsters earned or cost it, CEO picks vs own calls."""
+    wk = cash_week(db, now)
+    names = {t["id"]: t["name"] for t in roster.load(db)}
+    tot, agents = wk["all"], wk["agents"]
+    out = {"week": wk, "report": "", "mvp": "", "mvp_name": None}
+    if not tot["n"]:
+        out["report"] = "No cash bets settled this week, so there is nothing to review. The paper meeting covers what the desks did."
+        return out
+    earners = sorted(agents.items(), key=lambda kv: kv[1]["profit"], reverse=True)
+    if settings.llm_enabled:
+        system = ("You are The Commish, CEO of Agent Lab. This is the CASH half of the Sunday board meeting: only the bets the owner "
+                  "actually put real money on this week ($1-2 stakes). Write the minutes the owner reads Monday: at most 150 words, plain "
+                  "text, short paragraphs, no bullet lists, warm but blunt, a little funny. Cover: the week's cash result, which "
+                  "tipsters made or cost real money, whether your recommended picks beat the owner's own calls, and one concrete "
+                  "takeaway. Use the dollar figures given; never invent numbers. Be honest that a week is a tiny sample and never "
+                  "promise profit. Pick a cash MVP (the tipster whose picks earned the most real money) only if someone finished up.")
+        user = (f"Cash this week: {tot['n']} bets, {_rec(tot)}, {_usd(tot['profit'])} on ${tot['staked']:.2f} staked.\n"
+                f"Your recommended picks: {wk['ceo']['n']} bets, {_rec(wk['ceo'])}, {_usd(wk['ceo']['profit'])}.\n"
+                f"Owner's own calls: {wk['own']['n']} bets, {_rec(wk['own'])}, {_usd(wk['own']['profit'])}.\n"
+                + (f"Best: {wk['best']['bet']} ({_usd(wk['best']['profit'])}). " if wk["best"] else "")
+                + (f"Worst: {wk['worst']['bet']} ({_usd(wk['worst']['profit'])})." if wk["worst"] else "")
+                + "\nBy tipster (id = name: record, cash result):\n"
+                + "\n".join(f"{i} = {names.get(i, i)}: {_rec(a)}, {_usd(a['profit'])}" for i, a in earners))
+        got = brain._ask(settings.ceo_model, "low", system, user, CASH_SCHEMA([i for i, _ in earners]))
+        if got and got.get("report"):
+            out["report"], out["mvp"] = got["report"].strip(), got.get("mvp") or ""
+    if not out["report"]:
+        top_id, top = earners[0]
+        out["mvp"] = top_id if top["profit"] > 0 else ""
+        out["report"] = (f"Cash meeting. You settled {tot['n']} real bet{'s' if tot['n'] != 1 else ''} this week: {_rec(tot)}, "
+                         f"{_usd(tot['profit'])} on ${tot['staked']:.2f} staked. "
+                         + (f"My picks went {_rec(wk['ceo'])} for {_usd(wk['ceo']['profit'])}. " if wk["ceo"]["n"] else "")
+                         + (f"Your own calls went {_rec(wk['own'])} for {_usd(wk['own']['profit'])}. " if wk["own"]["n"] else "")
+                         + (f"Best earner: {names.get(top_id, top_id)} at {_usd(top['profit'])}. " if top["profit"] > 0 else "Nobody finished up in cash. ")
+                         + "One week is a small sample; the closing-line numbers in the paper meeting say more.")
+    if out["mvp"] and agents.get(out["mvp"], {}).get("profit", 0) <= 0:
+        out["mvp"] = ""
+    out["mvp_name"] = names.get(out["mvp"]) if out["mvp"] else None
+    return out
+
+
+def backfill_cash(lab) -> bool:
+    """Add the cash half to the latest meeting if it was held before cash meetings existed."""
+    m = lab.db.one("SELECT week, created_at, detail FROM meetings ORDER BY week DESC LIMIT 1")
+    if not m:
+        return False
+    detail = json.loads(m["detail"] or "{}")
+    if "cash" in detail:
+        return False
+    detail["cash"] = cash_meeting(lab.brain, lab.s, lab.db, roster.active(lab.db), parse(m["created_at"]))
+    lab.db.run("UPDATE meetings SET detail=? WHERE week=?", (json.dumps(detail), m["week"]))
+    return True
 
 
 def shortlist(team: list[dict], season: dict, wallets: dict, settings, relaxed: bool = False) -> list[dict]:
@@ -224,7 +334,8 @@ def hold(lab, now: datetime | None = None, relaxed: bool = False, force: bool = 
         hired = {"id": new_id, **new}
     else:
         fire = ""
-    detail = {"week": {k: {kk: vv for kk, vv in v.items()} for k, v in wk.items()}, "shortlist": fire_ids,
+    cash = cash_meeting(brain, s, db, team, now)
+    detail = {"cash": cash, "week": {k: {kk: vv for kk, vv in v.items()} for k, v in wk.items()}, "shortlist": fire_ids,
               "fired_name": next((t["name"] for t in team if t["id"] == fire), None), "fire_reason": reason,
               "hired_name": hired["name"] if hired else None, "hired_role": hired["role"] if hired else None,
               "mvp_name": next((t["name"] for t in team if t["id"] == mvp), None)}
@@ -232,6 +343,8 @@ def hold(lab, now: datetime | None = None, relaxed: bool = False, force: bool = 
            (week, iso(now), report, mvp or None, fire or None, hired["id"] if hired else None, json.dumps(detail)))
     db.feed(("Board meeting: " + (f"{detail['fired_name']} fired, {hired['name']} hired. " if hired else "no firings. ")
              + (f"MVP {detail['mvp_name']}." if mvp else "")).strip(), "commish")
+    ct = cash["week"]["all"]
     notify.push(s, "Board meeting minutes are in",
-                (f"{detail['fired_name']} is out. Welcome {hired['name']} ({hired['role']}).\n\n" if hired else "") + report[:500])
+                (f"Your cash this week: {_rec(ct)}, {_usd(ct['profit'])}.\n" if ct["n"] else "")
+                + (f"{detail['fired_name']} is out. Welcome {hired['name']} ({hired['role']}).\n\n" if hired else "\n" if ct["n"] else "") + report[:450])
     return db.one("SELECT * FROM meetings WHERE week=?", (week,))

@@ -258,6 +258,8 @@ td.n{font:19px var(--f-data)}
 .form i{width:7px;height:12px;display:block;background:var(--line)}
 .form i.win{background:var(--win)} .form i.loss{background:var(--loss)} .form i.push,.form i.void{background:var(--quiet)}
 .status{font:10px var(--f-display);padding:2px 5px;border:1px solid}
+.cashsplit{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:12px}
+.cashsplit b{font:10px var(--f-display);letter-spacing:.06em;color:var(--quiet);font-weight:400;margin-right:4px}
 .tiptools{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:8px}
 .tiptools .filters{margin:0}
 .tlist{display:grid;gap:6px}
