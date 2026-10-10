@@ -26,6 +26,16 @@ def price_grade(edge: float) -> tuple[str, str]:
     return "juice", f"full juice ({edge * 100:+.2f}% vs the no-vig market; fair is -1.50% or better). This one rides on the read, not the price."
 
 
+def pick_kind(p: dict, settings) -> str:
+    """"price": the price itself is the reason (your book pays at least the no-vig fair price, measured against real
+    quotes). "story": it rides on the tipster's read (weather, injuries, a hunch) at a normal bookmaker price.
+    Only price picks are recommended for real money."""
+    edge = p.get("edge")
+    if p.get("market") == "parlay" or p.get("estimated") or p.get("fair_prob") is None or edge is None:
+        return "story"
+    return "price" if edge >= settings.price_pick_edge - 1e-9 else "story"
+
+
 def pick_key(p: dict) -> tuple:
     return (p["event_id"], p["market"], p["selection"], p.get("point"), p.get("player"))
 
@@ -114,6 +124,9 @@ def review(new: list[dict], existing: list[dict], stats: dict, wallets: dict, se
             elif p.get("player") and _side(q) or q.get("player") and _side(p):
                 flag(f"Carl: player prop and team bet in the same game as {q['agent_name']}. They tend to move together.")
 
+        p["kind"] = pick_kind(p, settings)
+        notes.append("Mara: PRICE PICK. The price is at least fair on its own, so it can earn real money." if p["kind"] == "price"
+                     else "Mara: STORY PICK. It rides on the read, not the price, so it stays on paper unless you decide otherwise.")
         p["board_status"] = status
         p["board_notes"] = notes
         p["paper_only"] = paper_only

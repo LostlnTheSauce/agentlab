@@ -150,6 +150,8 @@ function card(p){
   const chips=[];
   if(p.result)chips.push(`<span class="pill ${p.result}">${p.result.toUpperCase()}</span>`);
   if(p.decision)chips.push(`<span class="pill ${p.decision}">${p.decision.toUpperCase()}</span>`);
+  chips.push(p.kind==='price'?'<span class="pill pricepick" title="Your book pays at least the fair price. Eligible for real money.">PRICE PICK</span>'
+    :'<span class="pill storypick" title="Rides on the tipster\'s read at a normal bookmaker price. Paper unless you decide otherwise.">STORY PICK</span>');
   if(p.real_pick)chips.push(`<span class="pill real">REAL $${p.ceo_rank?' #'+p.ceo_rank:''}</span>`);
   if(p.late)chips.push('<span class="pill late">LATE</span>');
   if(!p.decision&&!p.result)chips.push(`<span class="pill ${p.board}">${p.board.toUpperCase()}</span>`);

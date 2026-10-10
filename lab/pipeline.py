@@ -345,6 +345,8 @@ class Lab:
     def _ceo(self, kind, run_id, day, existing, new, stats, now) -> dict[str, int]:
         """Returns {pick_id: rank} for picks recommended for real money."""
         allp = existing + new
+        for p in allp:
+            p["kind"] = board.pick_kind(p, self.s)
         leaders = [p for p in allp if not p.get("group_id")]
         cleared = [p for p in leaders if p["board_status"] == "cleared" and not p.get("paper_only")]
         flagged = [p for p in leaders if p["board_status"] == "flagged"]
@@ -357,7 +359,7 @@ class Lab:
             self.db.run("INSERT OR REPLACE INTO memos(local_day,run_id,text,created_at) VALUES(?,?,?,?)", (day, run_id, text, iso(now)))
             return {pid: i + 1 for i, pid in enumerate(ids)}
         # rescans: late picks earn real money only when they're clearly strong
-        fresh = [p for p in new if p in cleared and (p.get("edge") or -1) >= 0.0 and not p.get("estimated")]
+        fresh = [p for p in new if p in cleared and p["kind"] == "price"]
         ids = pick_real(sorted(fresh, key=rank_score, reverse=True), room)
         return {pid: already + i + 1 for i, pid in enumerate(ids)}
 

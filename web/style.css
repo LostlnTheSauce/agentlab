@@ -174,6 +174,8 @@ a{color:var(--teal)}
 .pill.cleared{color:var(--win);border-color:#2f6b49}
 .pill.flagged{color:var(--flag);border-color:#5d4a86}
 .pill.vetoed,.pill.loss{color:var(--loss);border-color:#7a3b35}
+.pill.pricepick{color:var(--lime);border-color:#5f8f3a}
+.pill.storypick{color:var(--quiet);border-color:var(--line)}
 .pill.real{color:var(--amber-ink);background:var(--amber);border-color:var(--amber)}
 .pill.late{color:var(--amber);border-color:#6b5a36}
 .pill.taken{color:var(--lime-ink);background:var(--lime);border-color:var(--lime)}

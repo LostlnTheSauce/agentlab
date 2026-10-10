@@ -114,11 +114,10 @@ def connie(cands, ctx, agent, moves=None, **_):
     for c in cands:
         if c["sport"] not in agent["sports"] or c["market"] not in ("h2h", "spreads") or not priced(c):
             continue
+        # follow the move: the market has shifted toward this side since the line opened (that is mostly sharp money)
         mv = moves.get((c["event_id"], c["selection"]))
-        if mv is not None and mv <= -0.025:
-            out.append(opt(c, f"Market has moved {mv * 100:.1f} pts away from {c['selection']} since open. {price_note(c)}", -mv * 100 + c["edge"] * 100))
-        elif c["market"] == "spreads" and c["point"] is not None and c["point"] >= (9 if c["sport"] == NBA else 7) and c["edge"] >= -0.015:
-            out.append(opt(c, f"Big dog nobody wants: {c['selection']} +{c['point']:g}. {price_note(c)}", c["point"] / 3 + c["edge"] * 100))
+        if mv is not None and mv >= 0.025:
+            out.append(opt(c, f"Market has moved {mv * 100:+.1f} pts toward {c['selection']} since open. {price_note(c)}", mv * 100 + c["edge"] * 100))
     return out
 
 
@@ -288,10 +287,15 @@ def greta(cands, ctx, **_):
             for c in cands if c["sport"] in SOCCER and c["selection"] != "Draw" and priced(c, -0.01, 0.06)]
 
 
+# No-vig math overrates longshots (books shade big underdogs more than favorites), so past about +300 the "edge" is
+# mostly an artifact.
+URSULA_MAX = 300
+
+
 def ursula(cands, ctx, agent, **_):
     return [opt(c, f"{c['selection']} at {om.fmt(c['price'])}. {price_note(c)}", c["edge"] * 100 + c["price"] / 100)
             for c in cands if c["sport"] in agent["sports"] and c["market"] == "h2h" and c["selection"] != "Draw"
-            and c["price"] >= 120 and priced(c, -0.02)]
+            and 120 <= c["price"] <= URSULA_MAX and priced(c, -0.02)]
 
 
 def goblin(cands, ctx, props=None, **_):
@@ -346,8 +350,8 @@ def _signal(kind: str, c: dict, cx: dict, moves: dict) -> str | None:
             return f"{me['name']} FIP {me['fip']} vs {them['name']} {them['fip']}."
     if kind == "line_move":
         mv = moves.get((c["event_id"], c["selection"]))
-        if mv is not None and abs(mv) >= 0.025:
-            return f"Market moved {mv * 100:+.1f} pts on {c['selection']} since open."
+        if mv is not None and mv >= 0.025:
+            return f"Market moved {mv * 100:+.1f} pts toward {c['selection']} since open."
     return None
 
 

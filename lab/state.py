@@ -10,6 +10,7 @@ from . import ledger
 from . import oddsmath as om
 from .agents import describe
 from .db import DB, iso, local_day, parse, utcnow
+from .board import pick_kind
 from .explain import needs
 from .research import briefing
 from . import roster
@@ -37,7 +38,7 @@ def pick_view(p: dict, ctx: dict, members: dict, real: dict, settings, names: di
         "group": [names.get(a, {}).get("name", a) for a in members.get(lead, []) if a != p["agent"]],
         "merged": bool(p["group_id"]), "real_pick": bool(p["real_pick"]), "ceo_rank": p["ceo_rank"],
         "paper_only": bool(p["paper_only"]), "late": bool(p["late"]), "decision": p["decision"],
-        "result": p["result"], "clv": p["clv"], "actual": p["actual"],
+        "result": p["result"], "clv": p["clv"], "actual": p["actual"], "kind": pick_kind(p, settings),
         "research": briefing(ctx) if ctx else "", "local_day": p["local_day"],
         "real_bet": rb, "check": checks.get(p["id"]),
         "book": p.get("book") or "bovada", "book_name": book_name(p.get("book") or "bovada"),

@@ -189,21 +189,23 @@ class Brain:
     def memo(self, cleared: list[dict], flagged: list[dict], vetoed: list[dict], standings: str, max_real: int) -> tuple[str, list[str]]:
         """Returns (memo text, ids of picks recommended for real money, in priority order)."""
         ranked = sorted(cleared, key=rank_score, reverse=True)
-        fallback_ids = pick_real(ranked, max_real)
+        fallback_ids = pick_real([p for p in ranked if p.get("kind") == "price"], max_real)
         if not cleared and not flagged:
             return ("Quiet board this morning. Nobody found a price worth your money, and that's fine. "
                     "The desks will look again this afternoon."), []
         if not self.s.llm_enabled:
             return _template_memo(ranked, flagged, vetoed, fallback_ids), fallback_ids
-        lines = [f"[{i}] {p['agent_name']}: {describe(p)}{' at ' + book_name(p['book']) if p.get('book') else ''} ({short(p['sport'])}, {matchup(p)}) edge {p['edge'] * 100:+.1f}%, "
+        lines = [f"[{i}] {'PRICE' if p.get('kind') == 'price' else 'STORY'} PICK. {p['agent_name']}: {describe(p)}{' at ' + book_name(p['book']) if p.get('book') else ''} ({short(p['sport'])}, {matchup(p)}) edge {p['edge'] * 100:+.1f}%, "
                  f"{p['stake_units']:g}u, confidence {p['confidence']}. {p['reasoning']}" for i, p in enumerate(ranked, 1)]
         other = [f"- {p['agent_name']}: {describe(p)} — {p['board_status'].upper()}: {'; '.join(p['board_notes'])}" for p in flagged + vetoed]
         system = (
             "You are The Commish, CEO of Agent Lab, a 20-tipster sports betting research firm. Voice: brisk, warm, decisive; "
             "you respect the owner's money. The owner bets small ($1-2) on Bovada and reads your memo each morning.\n"
-            f"Choose up to {max_real} cleared picks (by number) that deserve real money, best first. Only fair prices or better "
-            "(edge -1.5% or higher). Prefer strong, specific reads and better prices, diversify across games, and skip anything shaky; "
-            "choosing fewer, or none, is fine. Then write a memo of at most 110 words: "
+            f"Choose up to {max_real} cleared picks (by number) that deserve real money, best first. Only picks marked PRICE PICK "
+            "are eligible: the owner's book pays at least the fair price on them. STORY PICKs ride on the tipster's read at a "
+            "normal bookmaker price and stay on paper; you may mention a good one as worth watching, but never recommend it for "
+            "money. Prefer better prices and specific reads, diversify across games, and skip anything shaky; choosing fewer, "
+            "or none, is fine, and on a day with no price picks say so plainly. Then write a memo of at most 110 words: "
             "the headline pick and why (say which sportsbook to use when the pick names one), anything the owner should watch, and total real-money exposure. Plain text, no lists, no hype, no promises."
         )
         user = ("Cleared by the risk board:\n" + ("\n".join(lines) or "(none)")
@@ -214,7 +216,7 @@ class Brain:
             return _template_memo(ranked, flagged, vetoed, fallback_ids), fallback_ids
         ids = []
         for i in out.get("real_money", []):
-            if isinstance(i, int) and 1 <= i <= len(ranked) and ranked[i - 1]["id"] not in ids:
+            if isinstance(i, int) and 1 <= i <= len(ranked) and ranked[i - 1]["id"] not in ids and ranked[i - 1].get("kind") == "price":
                 ids.append(ranked[i - 1]["id"])
         return str(out.get("memo", ""))[:1200] or _template_memo(ranked, flagged, vetoed, ids), ids[:max_real]
 
@@ -240,7 +242,7 @@ def _template_memo(ranked, flagged, vetoed, real_ids) -> str:
     by_id = {p["id"]: p for p in ranked}
     real = [by_id[i] for i in real_ids if i in by_id]
     if not real:
-        return (f"The board cleared {len(ranked)} picks, but none clears my bar for real money today. "
+        return (f"The board cleared {len(ranked)} picks, but none is a price pick: no book is paying at least the fair price today. "
                 "Let them ride on paper and we'll learn something either way.")
     top = real[0]
     exposure = sum(p["stake_units"] for p in real)

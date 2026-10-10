@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from lab import board, grading, ledger
+from lab import board, grading, ledger, roster
 from lab import oddsmath as om
 from lab.config import Settings
 from lab.db import DB, iso
@@ -136,6 +136,46 @@ class Board(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_price_picks_are_the_only_cash_picks(self):
+        from lab.agents import Brain
+        from lab.board import pick_kind
+        price = pick("a", fair_prob=0.53, edge=om.edge(0.53, -105))            # pays more than fair
+        story = pick("b", event_id="ev2", fair_prob=0.50, edge=om.edge(0.50, -105))  # normal juice, rides on the read
+        guess = pick("c", event_id="ev3", fair_prob=0.56, edge=om.edge(0.56, -105), estimated=True)
+        self.assertEqual([pick_kind(x, self.s) for x in (price, story, guess)], ["price", "story", "story"])
+        self.assertEqual(pick_kind(pick("d", market="parlay", edge=0.05), self.s), "story")
+        new = [price, story]
+        board.review(new, [], {}, {"quinn": 10}, self.s, NOW)
+        self.assertEqual([x["kind"] for x in new], ["price", "story"])
+        memo, ids = Brain(self.s).memo(new, [], [], "", 6)
+        self.assertEqual(ids, ["a"])  # the story pick cleared the board but gets no cash
+        _, none = Brain(self.s).memo([story], [], [], "", 6)
+        self.assertEqual(none, [])
+
+    def test_connie_follows_the_move_and_ursula_caps_longshots(self):
+        from lab.strategies import connie, ursula
+        c = lambda sel, price, fair: {"event_id": "e1", "sport": "americanfootball_nfl", "market": "h2h", "selection": sel, "home": "Home",
+                                      "away": "Away", "point": None, "price": price, "fair_prob": fair, "edge": om.edge(fair, price),
+                                      "books": 5, "dispersion": 0.01}
+        agent = {"sports": ["americanfootball_nfl"]}
+        cands = [c("Home", -150, 0.60), c("Away", 140, 0.41)]
+        moves = {("e1", "Home"): 0.03, ("e1", "Away"): -0.03}
+        self.assertEqual([o["cand"]["selection"] for o in connie(cands, {}, agent, moves=moves)], ["Home"])  # toward, not away
+        dogs = [c("Away", 140, 0.41), {**c("Away", 450, 0.18), "event_id": "e2"}]
+        self.assertEqual([o["cand"]["price"] for o in ursula(dogs, {}, agent)], [140])  # +450 is past the cap
+
+    def test_roster_copy_follows_the_code(self):
+        import json as _j
+        db = DB(self.s.db_path)
+        roster.load(db)
+        row = db.one("SELECT data FROM tipsters WHERE id='connie'")
+        old = _j.loads(row["data"]); old["role"] = "Contrarian"; old["method"] = "old method"
+        db.run("UPDATE tipsters SET data=? WHERE id='connie'", (_j.dumps(old),))
+        roster._synced.clear()
+        connie = roster.lookup(db)["connie"]
+        self.assertEqual(connie["role"], "Line-move follower")
+        self.assertIn("moved toward", connie["method"])
 
     def test_value_veto_and_duplicates(self):
         good, dup, bad = pick("a"), pick("b", agent="rhea"), pick("c", agent="blue", price=-130, edge=om.edge(0.53, -130))

@@ -38,10 +38,10 @@ TIPSTERS = [
        "Folksy amateur meteorologist. Talks about flags on goalposts and how the air feels.",
        "Outdoor football totals when the forecast shows real wind (15+ mph), big gusts, or heavy rain. Bets the under.",
        [NFL, CFB], "#7aa7ff", "#d8d8d8", "#e6b893", "Check the flags on the goalposts."),
-    _a("connie", "Connie", "nfl", "Contrarian",
-       "Punchy, a little smug, loves going against the crowd.",
-       "Backs the side the market has moved away from since the line opened, or big underdogs the public ignores, when the price is fair.",
-       [NFL, CFB, NBA], "#ff9aa8", "#2b1b16", "#8d5a3b", "If everyone agrees, somebody is wrong."),
+    _a("connie", "Connie", "nfl", "Line-move follower",
+       "Punchy, a little smug. A reformed contrarian who now rides with the sharp money and won't shut up about it.",
+       "Backs the side the market has moved toward since the line opened, when one of your books hasn't fully caught up.",
+       [NFL, CFB, NBA], "#ff9aa8", "#2b1b16", "#8d5a3b", "I used to fade the smart money. Now I carpool with it."),
     _a("ray", "Ray", "nfl", "Road warrior",
        "Travel-obsessed road-trip veteran. Talks about body clocks, flights and short weeks.",
        "Fades teams with a travel or rest disadvantage: West Coast teams in early Eastern kickoffs, short weeks, long trips.",
@@ -102,7 +102,7 @@ TIPSTERS = [
        [NFL], "#6aa84f", "#2a3a1a", "#b6d68a", "Receptions are the purest market."),
     _a("ursula", "Ursula", "lab", "Plus money only",
        "Defiant underdog lover. Never lays a price.",
-       "Underdog moneylines at +120 or longer, when the price beats the market.",
+       "Underdog moneylines from +120 to +300, when the price beats the market. Past +300 the math flatters longshots.",
        [NFL, CFB, MLB, NBA, *SOCCER], "#e05252", "#f2f2f2", "#d9a07c", "Favorites are for people who like losing slowly."),
     _a("coin", "Coin Flip", "lab", "The benchmark",
        "Says almost nothing. Occasionally 'Heads.'",
@@ -150,9 +150,36 @@ def ensure(db) -> None:
             c.execute("INSERT OR IGNORE INTO tipsters(id,data,status,seat) VALUES(?,?,?,?)", (t["id"], _json.dumps(t), "active", seat))
 
 
+_synced: set[str] = set()
+
+
+def sync_originals(db) -> int:
+    """The live roster is stored in the database, so a change to an original tipster's write-up has to be copied over.
+    Only the words (role, voice, method, quote); seats, status and hires are left alone."""
+    key = str(getattr(db, "path", id(db)))
+    if key in _synced:
+        return 0
+    _synced.add(key)
+    changed = 0
+    for r in db.all("SELECT id, data FROM tipsters"):
+        src = BY_ID.get(r["id"])
+        if not src:
+            continue
+        data = _json.loads(r["data"])
+        if data.get("strategy", r["id"]) != r["id"]:
+            continue
+        new = {k: src[k] for k in ("role", "voice", "method", "quote")}
+        if any(data.get(k) != v for k, v in new.items()):
+            data.update(new)
+            db.run("UPDATE tipsters SET data=? WHERE id=?", (_json.dumps(data), r["id"]))
+            changed += 1
+    return changed
+
+
 def load(db) -> list[dict]:
     """Every tipster ever employed, active first, in desk seat order."""
     ensure(db)
+    sync_originals(db)
     out = []
     order = {d["key"]: i for i, d in enumerate(DESKS)}
     for r in db.all("SELECT * FROM tipsters"):

@@ -71,6 +71,7 @@ class Settings:
     wallet_dollars: float = 10.0
     max_units: int = 2
     max_real_per_day: int = 6
+    price_pick_edge: float = 0.0  # a "price pick" pays at least this much vs the no-vig fair price; only those get cash
     min_books: int = 3
     slate_hour: int = 8
     rescan_hours: list[int] = field(default_factory=lambda: [12, 16])
@@ -115,6 +116,7 @@ def get_settings() -> Settings:
         wallet_dollars=_float("LAB_WALLET_DOLLARS", 10.0),
         max_units=_int("LAB_MAX_UNITS", 2),
         max_real_per_day=_int("LAB_MAX_REAL_PER_DAY", 6),
+        price_pick_edge=_float("LAB_PRICE_PICK_EDGE", 0.0),
         min_books=_int("LAB_MIN_BOOKS", 3),
         slate_hour=_int("LAB_SLATE_HOUR", 8),
         rescan_hours=[int(h) for h in _list("LAB_RESCAN_HOURS", "12,16") if h.isdigit()],
