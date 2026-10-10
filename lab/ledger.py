@@ -12,7 +12,7 @@ from . import roster
 def wallet_balances(db: DB, kind: str, settings) -> dict[str, float]:
     rows = db.all(
         "SELECT agent, COALESCE(SUM(CASE WHEN result IS NULL THEN stake_cents ELSE 0 END),0) AS open,"
-        " COALESCE(SUM(CASE WHEN result IS NOT NULL THEN profit_cents ELSE 0 END),0) AS pnl FROM bets WHERE kind=? GROUP BY agent",
+        " COALESCE(SUM(CASE WHEN result IS NOT NULL THEN profit_cents ELSE 0 END),0) AS pnl FROM bets WHERE kind=? AND personal=0 GROUP BY agent",
         (kind,),
     )
     start = round(settings.wallet_dollars * 100)
@@ -28,7 +28,7 @@ def agent_stats(db: DB, settings) -> dict[str, dict]:
         stats[a["id"]] = {"w": 0, "l": 0, "p": 0, "graded": 0, "profit_cents": 0, "staked_cents": 0, "units": 0.0,
                           "open": 0, "clv": None, "clv_n": 0, "last10": [], "real_profit_cents": 0, "real_w": 0, "real_l": 0,
                           "real_open": 0, "picks_total": 0, "real_p": 0, "real_staked_cents": 0, "real_last10": [], "real_clv": None, "real_clv_n": 0}
-    for r in db.all("SELECT agent, kind, stake_cents, result, profit_cents FROM bets ORDER BY placed_at"):
+    for r in db.all("SELECT agent, kind, stake_cents, result, profit_cents FROM bets WHERE personal=0 ORDER BY placed_at"):
         s = stats.get(r["agent"])
         if not s:
             continue
@@ -62,7 +62,7 @@ def agent_stats(db: DB, settings) -> dict[str, dict]:
             s["clv_n"] += 1
     # the same form and closing-line read, but only for bets that had cash on them
     for r in db.all("SELECT b.agent, b.result, p.line_move AS clv FROM bets b JOIN picks p ON p.id=b.pick_id "
-                    "WHERE b.kind='real' AND b.result IS NOT NULL ORDER BY b.settled_at, b.id"):
+                    "WHERE b.kind='real' AND b.personal=0 AND b.result IS NOT NULL ORDER BY b.settled_at, b.id"):
         s = stats.get(r["agent"])
         if not s:
             continue
@@ -106,7 +106,17 @@ def group_members(db: DB, pick_id: str) -> list[dict]:
     return db.all("SELECT * FROM picks WHERE (id=? OR group_id=?) AND board_status!='vetoed' ORDER BY created_at", (lead, lead))
 
 
-def place_real(db: DB, pick_id: str, price: int, stake_dollars: float, book: str | None = None) -> list[dict]:
+def set_personal(db: DB, pick_id: str, personal: bool) -> int:
+    """Mark a real bet as personal (kept out of every stat) or put it back. Every tipster's share of the bet moves together."""
+    ids = [m["id"] for m in group_members(db, pick_id)] or [pick_id]
+    marks = ",".join("?" * len(ids))
+    if not db.one(f"SELECT 1 FROM bets WHERE kind='real' AND pick_id IN ({marks})", ids):
+        raise ValueError("No real bet recorded on this pick")
+    db.run(f"UPDATE bets SET personal=? WHERE kind='real' AND pick_id IN ({marks})", [int(bool(personal)), *ids])
+    return len(ids)
+
+
+def place_real(db: DB, pick_id: str, price: int, stake_dollars: float, book: str | None = None, personal: bool = False) -> list[dict]:
     """Record a real Bovada bet. A merged pick splits stake and result across every tipster who made it."""
     om.dec(price)  # validates
     members = group_members(db, pick_id)
@@ -122,8 +132,8 @@ def place_real(db: DB, pick_id: str, price: int, stake_dollars: float, book: str
     with db.tx() as c:
         for m, share in zip(members, shares):
             if share > 0:
-                c.execute("INSERT INTO bets(pick_id,kind,agent,stake_cents,price,placed_at,book) VALUES(?,?,?,?,?,?,?)",
-                          (m["id"], "real", m["agent"], share, price, now, book or m.get("book") or "bovada"))
+                c.execute("INSERT INTO bets(pick_id,kind,agent,stake_cents,price,placed_at,book,personal) VALUES(?,?,?,?,?,?,?,?)",
+                          (m["id"], "real", m["agent"], share, price, now, book or m.get("book") or "bovada", int(bool(personal))))
             c.execute("UPDATE picks SET decision='placed', decided_at=? WHERE id=?", (now, m["id"]))
         # a real bet placed after the game was graded settles immediately
         for m in members:

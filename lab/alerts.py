@@ -54,7 +54,7 @@ def graded(settings, db: DB, was_open: set[str]) -> int:
         title = {"win": "Bet won!", "loss": "Bet lost", "push": "Bet pushed", "void": "Bet voided"}.get(done[0]["result"], "Bet graded")
     else:
         title = f"{wins} of {len(done)} bets won ({'+' if total >= 0 else '-'}${abs(total):.2f})"
-    season = db.one("SELECT COALESCE(SUM(profit_cents),0) p FROM bets WHERE kind='real' AND result IS NOT NULL")["p"] / 100
+    season = db.one("SELECT COALESCE(SUM(profit_cents),0) p FROM bets WHERE kind='real' AND personal=0 AND result IS NOT NULL")["p"] / 100
     body = "\n".join(_line(b) for b in done) + f"\n\nReal money all-time: {'+' if season >= 0 else '-'}${abs(season):.2f}"
     notify.push(settings, title, body, priority="high" if any(b["result"] == "win" for b in done) else "default")
     return len(done)

@@ -151,7 +151,9 @@ def create_app(settings=None, db: DB | None = None) -> Flask:
                 book = body.get("book") or p.get("book") or "bovada"
                 if book not in s.my_books and book != p.get("book"):
                     raise ValueError("Unknown sportsbook")
-                ledger.place_real(db, pick_id, price, stake, book)
+                ledger.place_real(db, pick_id, price, stake, book, personal=bool(body.get("personal")))
+            elif action == "personal":
+                ledger.set_personal(db, pick_id, bool(body.get("value")))
             elif action == "grade":
                 grading.manual_grade(db, pick_id, body.get("result", ""))
             elif action == "regrade":

@@ -231,7 +231,7 @@ async function checkPrice(p,b){
 }
 async function act(p,action,extra){
   try{await api('api/pick/'+encodeURIComponent(p.id),{action,...extra});await load();
-    toast({pass:'Passed',undo:'Undone',placed:'Recorded. It grades itself after the game.',grade:'Graded',regrade:'Result corrected and money re-settled.'}[action]||'Done')}
+    toast({pass:'Passed',undo:'Undone',placed:'Recorded. It grades itself after the game.',grade:'Graded',regrade:'Result corrected and money re-settled.',personal:'Updated. Your stats are recalculated.'}[action]||'Done')}
   catch(e){toast(e.message,true)}
 }
 
@@ -250,7 +250,7 @@ const dec=a=>a>0?1+a/100:1+100/-a;
 function openPlace(p){
   placing=p;
   $('placeWhat').textContent=`${p.bet} ${p.price_txt}`;$('placeNeeds').textContent=p.needs||'';
-  placeBook=p.book||'bovada';renderBooks(p);
+  placeBook=p.book||'bovada';renderBooks(p);$('placePersonal').checked=false;
   $('placeSteps').innerHTML=[`Open <b>${esc(p.book_name||'Bovada')}</b> → ${esc(p.league)} → <b>${esc(p.game)}</b>.`,`Find <b>${esc(p.bet)}</b>. It was ${esc(p.price_txt)} when picked.`,
     p.min_price!=null?`Only bet if the price is <b>${esc(p.min_txt)}</b> or better. Worse than that, the edge is gone: cancel and pass.`:'No floor for this one; use your judgment.',
     `Bet ${money(p.stake_dollars)}, then enter the price you actually got.`].map(s=>`<li>${s}</li>`).join('');
@@ -299,7 +299,7 @@ $('placeForm').addEventListener('submit',e=>{
   if(e.submitter&&e.submitter.value!=='ok')return;
   const {pr,st}=checkPlace();
   if(pr==null||!(st>0)){e.preventDefault();return}
-  act(placing,'placed',{price:pr,stake:st,book:placeBook});
+  act(placing,'placed',{price:pr,stake:st,book:placeBook,personal:$('placePersonal').checked});
 });
 
 /* ---------------------------------------------------------------- tipsters */
@@ -438,9 +438,9 @@ function scheduleHtml(open){
             <span class="q">· ${o.final?esc(o.final):esc(o.game)+' · '+esc(when(o.commence))}</span></div>`}).join('');
           const now2=LIVE.picks[x.pid],fin=g.L&&g.L.state==='post';
           const badge=now2?`<span class="inmoney ${now2}">${now2==='win'?(fin?'WON':'WINNING'):now2==='loss'?(fin?'LOST':'LOSING'):'PUSH'}</span> `:'';
-          return `<div class="sbet ${now2?'st-'+now2:''}">${badge}${esc(x.label)}${arrow} <span class="q">· ${esc(x.sub)}</span>${x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}
+          return `<div class="sbet ${now2?'st-'+now2:''}">${badge}${esc(x.label)}${x.b.personal?'<span class="tag personal">PERSONAL</span>':''}${arrow} <span class="q">· ${esc(x.sub)}</span>${x.needs?`<div class="needs">${esc(x.needs)}</div>`:''}
           ${others?`<div class="olegs"><b>OTHER LEG${x.others.length>1?'S':''}</b>${others}</div>`:''}
-          ${isOpen?`<div class="g q">Picked by ${esc(x.b.agents.join(', '))}${x.b.recommended?' · CEO real-money pick':' · your call'}</div>${x.isLeg?'':moveHtml(x.b)}`:''}</div>`}).join('')}
+          ${isOpen?`<div class="g q">Picked by ${esc(x.b.agents.join(', '))}${x.b.recommended?' · CEO real-money pick':' · your call'}</div>${x.isLeg?'':moveHtml(x.b)}${personalBtn(x.b)}`:''}</div>`}).join('')}
         ${isOpen?`<div class="watch"><div><b>WATCH</b> ${g.tv?esc(g.tv):'<span class="q">TV channel not announced yet</span>'}${g.venue?` <span class="q">· ${esc(g.venue)}</span>`:''}</div>
           ${g.link?`<a class="golink" href="${esc(g.link)}" target="lab-espn" rel="noopener noreferrer">FULL GAME ON ESPN ↗</a>`:''}</div>`
           :`<div class="tvhint q">${g.tv?esc(g.tv)+' · ':''}tap for how to watch and odds moves</div>`}</div></div>`}).join('')}</div>`).join('')}</div>`;
@@ -460,13 +460,16 @@ function glance(){
   return `<div class="glance"><b>LIVE NOW</b> ${st.win?`<span class="up">${st.win} winning</span>`:''}${st.win&&(st.loss||st.push)?' · ':''}${st.loss?`<span class="down">${st.loss} losing</span>`:''}${st.loss&&st.push?' · ':''}${st.push?`<span class="q">${st.push} push</span>`:''}
     <span class="q">· if they all ended now:</span> <span class="${cls(net)}">${money(net,true)}</span></div>`;
 }
+/* personal bets: logged and graded, but kept out of every stat. A switch on each real bet. */
+function personalBtn(b){return `<div class="fix"><button class="linkbtn" data-personal="${esc(b.id)}" data-to="${b.personal?0:1}">${b.personal?'Count this bet in my stats again':'Mark as a personal bet (keep it out of my stats)'}</button></div>`}
+function wirePersonal(box){box.querySelectorAll('[data-personal]').forEach(x=>x.onclick=e=>{e.stopPropagation();act({id:x.dataset.personal},'personal',{value:x.dataset.to==='1'})})}
 function myBetsView(){
   const M=S.mine,A=M.all,box=$('myBets');
   const open=M.bets.filter(b=>b.status==='open');
   const sched=scheduleHtml(open);
   box.innerHTML=`<div class="riding">
       <div><b>OPEN</b><span>${A.open}</span></div>
-      <div><b>RIDING</b><span>${money(A.open_stake)}</span></div>
+      <div><b>RIDING</b><span>${money(A.open_stake)}</span>${A.open_personal?`<i class="q" style="font:10px var(--f-body);font-style:normal">incl. ${money(A.open_personal)} personal</i>`:''}</div>
       <div><b>TO WIN</b><span class="up">${money(A.open_to_win||0)}</span></div>
       <button class="tohist" data-goto="history"><b>ALL-TIME</b><span class="${cls(A.profit)}">${A.settled?money(A.profit,true):'—'}</span><i>HISTORY ›</i></button>
     </div>
@@ -474,6 +477,7 @@ function myBetsView(){
     ${sched?`<div class="h2">COMING UP <span class="q" style="font:11px var(--f-body);letter-spacing:0">· tap a game for how to watch and odds moves</span></div>${sched}`
       :`<div class="empty">${M.bets.length?'Nothing riding right now. Finished bets are in HISTORY.':'No real bets yet. Tap BET on a pick in the Slate tab, place it on your sportsbook, then tap I PLACED IT, and it shows up here.'}</div>`}`;
   box.querySelector('[data-goto]').onclick=()=>show('history');
+  wirePersonal(box);
   box.querySelectorAll('.sgame').forEach(x=>{const tog=e=>{if(e.target.closest('a'))return;const k=x.dataset.game;openGames.has(k)?openGames.delete(k):openGames.add(k);myBetsView()};
     x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog(e)}}});
 }
@@ -497,12 +501,14 @@ function historyView(){
   if(!done.length){box.innerHTML='<div class="empty">No finished bets yet. Once a game ends, the bet lands here with the final score.</div>';return}
   const rec=(t,label,c)=>`<div class="${c}"><b>${label}:</b> ${t.settled?`${t.w}–${t.l}${t.p?'–'+t.p:''} · <span class="${cls(t.profit)}">${money(t.profit,true)}</span>`:'nothing settled yet'}</div>`;
   const rate=A.w+A.l?Math.round(A.w/(A.w+A.l)*100)+'%':'—';
+  const P=M.personal||{settled:0},counted=done.filter(b=>!b.personal);
   const F=[['all','ALL',done.length],['won','WON',A.w],['lost','LOST',A.l]];
   if(A.p)F.push(['push','PUSH',A.p]);
+  if(P.settled)F.push(['personal','PERSONAL',P.settled]);
   if(betFilter==='open'||!F.some(f=>f[0]===betFilter))betFilter='all';
-  const list=done.filter(b=>betFilter==='all'||b.status===betFilter).sort((x,y)=>new Date(y.commence)-new Date(x.commence));
+  const list=(betFilter==='all'?done:betFilter==='personal'?done.filter(b=>b.personal):counted.filter(b=>b.status===betFilter)).sort((x,y)=>new Date(y.commence)-new Date(x.commence));
   const dayKey=b=>new Date(b.commence).toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'}).toUpperCase();
-  const days=[];list.forEach(b=>{const k=dayKey(b);let d=days.find(x=>x.k===k);if(!d)days.push(d={k,bets:[],net:0});d.bets.push(b);d.net+=b.profit||0});
+  const days=[];list.forEach(b=>{const k=dayKey(b);let d=days.find(x=>x.k===k);if(!d)days.push(d={k,bets:[],net:0});d.bets.push(b);d.net+=b.personal?0:b.profit||0});
   const row=b=>{
     const bkey=b.id+'|'+b.placed_at,isOpen=openBets.has(bkey);
     const amt=b.status==='push'?`$0.00<small>PUSH</small>`:`<span class="${cls(b.profit)}">${money(b.profit,true)}</span><small>${b.status==='won'?'WON':'LOST'}</small>`;
@@ -511,13 +517,13 @@ function historyView(){
     const short=legs.length?`${legs.filter(g=>g.leg_result==='win').length} of ${legs.length} legs won`:finals[0]?finals[0].final:'';
     const clv=b.clv!=null?` · your price vs the close <span class="${cls(b.clv)}">${pct(b.clv)}</span>`:'';
     return `<div class="brow ${b.status}${isOpen?' open2':''}" data-bet="${esc(bkey)}" role="button" tabindex="0" aria-expanded="${isOpen}"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
-      <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>
+      <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>${b.personal?'<span class="tag personal">PERSONAL</span>':''}
         ${short?`<div class="${legs.length?'g':'final'}">${esc(short)}</div>`:''}
         ${isOpen?`<div class="more">
           <div class="g">${esc(b.book)} · ${money(b.stake)}${legs.length?'':` · ${esc(b.game)} · ${esc(when(b.commence))}`}</div>
           ${legs.map(g=>`<div class="leg"><span class="pill ${g.leg_result||'passed'}">${(g.leg_result||'open').toUpperCase()}</span> ${esc(g.leg)}${g.final?`<div class="final">${esc(g.final)}</div>`:''}</div>`).join('')}
           <div class="g">Picked by ${esc(b.agents.join(', '))}${b.recommended?' · CEO real-money pick':' · your call'}${clv}</div>
-          ${fixHtml(b)}
+          ${personalBtn(b)}${fixHtml(b)}
           ${b.move?moveHtml(b):''}</div>`:''}</div>
       <div class="amt">${amt}</div></div>`};
   box.innerHTML=`<div class="score">
@@ -528,6 +534,7 @@ function historyView(){
         <div class="tile"><b>WIN RATE</b><span>${rate}</span></div>
       </div>
       <div class="split">${rec(M.ceo,'CEO picks','ceo')}${rec(M.mine,'Your calls','own')}</div>
+      ${P.settled?`<div class="q" style="font-size:12px">Personal bets, not counted above: ${P.w}–${P.l}${P.p?'–'+P.p:''} · <span class="${cls(P.profit)}">${money(P.profit,true)}</span></div>`:''}
     </div>
     <div class="filters">${F.map(([k,l,n])=>`<button data-bf="${k}" class="${betFilter===k?'on':''}">${l} ${n}</button>`).join('')}</div>
     ${days.map(d=>`<div class="hday"><span>${esc(d.k)}</span><span class="${cls(d.net)}">${money(d.net,true)}</span></div>
@@ -535,6 +542,7 @@ function historyView(){
     <p class="q" style="font-size:11px;margin:10px 0 0">Tap a bet for the book, tipsters, each parlay leg, and how your price compared to the closing line.</p>`;
   box.querySelectorAll('.brow').forEach(x=>{const tog=e=>{if(e&&e.target.closest('.fix'))return;const k=x.dataset.bet;openBets.has(k)?openBets.delete(k):openBets.add(k);historyView()};
     x.onclick=tog;x.onkeydown=e=>{if(e.target.closest('.fix'))return;if(e.key==='Enter'||e.key===' '){e.preventDefault();tog()}}});
+  wirePersonal(box);
   box.querySelectorAll('[data-fixopen]').forEach(x=>x.onclick=()=>{const k=x.dataset.fixopen;fixOpen.has(k)?fixOpen.delete(k):fixOpen.add(k);historyView()});
   box.querySelectorAll('[data-fix]').forEach(x=>x.onclick=()=>{const r=x.dataset.fix,what=x.dataset.what;
     const msg=r==='espn'?`Throw away the saved score for "${what}" and ask ESPN again? Every bet on that game is re-graded.`

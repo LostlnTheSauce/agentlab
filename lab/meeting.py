@@ -60,7 +60,7 @@ def cash_week(db: DB, now: datetime) -> dict:
     """The owner's real-money bets that settled in the 7 days before `now`. A bet merged across tipsters is one
     bet in the totals and a share on each tipster's line."""
     rows = db.all("SELECT b.agent, b.stake_cents, b.profit_cents, b.result, b.placed_at, b.price AS got, p.* FROM bets b JOIN picks p ON p.id=b.pick_id "
-                  "WHERE b.kind='real' AND b.result IS NOT NULL AND b.settled_at>? AND b.settled_at<=? ORDER BY b.settled_at, b.id",
+                  "WHERE b.kind='real' AND b.personal=0 AND b.result IS NOT NULL AND b.settled_at>? AND b.settled_at<=? ORDER BY b.settled_at, b.id",
                   (iso(now - timedelta(days=7)), iso(now)))
     bets: dict[tuple, dict] = {}
     by_agent: dict[str, dict] = {}

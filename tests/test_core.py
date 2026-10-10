@@ -257,6 +257,27 @@ class LedgerAndGrading(unittest.TestCase):
         self.assertEqual(grading.grade_parlays(self.db), 1)
         self.assertEqual(self.db.one("SELECT profit_cents FROM bets WHERE pick_id='pp'")["profit_cents"], 150)
 
+    def test_personal_bets_stay_out_of_every_record(self):
+        from lab.state import build_state
+        self.insert(pick("a", price=150))
+        self.insert(pick("b", event_id="ev2", price=150))
+        ledger.place_real(self.db, "a", 150, 1.00)
+        ledger.place_real(self.db, "b", 150, 10.00, personal=True)       # the wedding-day bet
+        for pid in ("a", "b"):
+            grading.manual_grade(self.db, pid, "win")
+        st = build_state(self.s, self.db)
+        mine = st["mine"]
+        self.assertEqual((mine["all"]["settled"], mine["all"]["profit"]), (1, 1.5))          # only the normal bet counts
+        self.assertEqual((mine["personal"]["settled"], mine["personal"]["profit"]), (1, 15.0))
+        self.assertEqual(len(mine["bets"]), 2)                                               # but both are logged
+        self.assertEqual([e["v"] for e in st["real"]["equity"]], [1.5])                      # the chart skips it
+        self.assertAlmostEqual(ledger.wallet_balances(self.db, "real", self.s)["quinn"], 11.5)
+        self.assertEqual(ledger.agent_stats(self.db, self.s)["quinn"]["real_w"], 1)
+        ledger.set_personal(self.db, "b", False)                                             # changed your mind
+        self.assertEqual(build_state(self.s, self.db)["mine"]["all"]["profit"], 16.5)
+        with self.assertRaises(ValueError):
+            ledger.set_personal(self.db, "nope", True)
+
     def test_regrade_fixes_money_and_parlays(self):
         self.insert(pick("x", market="h2h", price=150))
         self.insert(pick("x2", agent="rhea", market="h2h", price=150, group_id="x"))   # the same bet from a second tipster

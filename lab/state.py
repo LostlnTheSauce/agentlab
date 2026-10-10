@@ -92,7 +92,7 @@ def build_state(settings, db: DB) -> dict:
     def totals(kind):
         r = db.one("SELECT COUNT(*) n, SUM(result='win') w, SUM(result='loss') l, SUM(result IN ('push','void')) p, "
                    "COALESCE(SUM(CASE WHEN result IS NOT NULL THEN profit_cents END),0) pr, COALESCE(SUM(CASE WHEN result IS NOT NULL THEN stake_cents END),0) st, "
-                   "COALESCE(SUM(CASE WHEN result IS NULL THEN stake_cents END),0) op FROM bets WHERE kind=?", (kind,))
+                   "COALESCE(SUM(CASE WHEN result IS NULL THEN stake_cents END),0) op FROM bets WHERE kind=? AND personal=0", (kind,))
         return {"bets": r["n"], "w": r["w"] or 0, "l": r["l"] or 0, "p": r["p"] or 0, "profit": r["pr"] / 100,
                 "staked": r["st"] / 100, "open": r["op"] / 100, "roi": (r["pr"] / r["st"]) if r["st"] else None}
 
@@ -102,7 +102,7 @@ def build_state(settings, db: DB) -> dict:
     def equity(kind):
         # running profit after each settled bet, in game-time order (merged tipster shares count as one bet)
         rows = db.all("SELECT MIN(p.commence) t, SUM(b.profit_cents) pr, MIN(b.pick_id) pid, MAX(b.result) res FROM bets b JOIN picks p ON p.id=b.pick_id "
-                      "WHERE b.kind=? AND b.result IS NOT NULL GROUP BY b.placed_at, COALESCE(p.group_id, p.id) ORDER BY t, MIN(b.id)", (kind,))
+                      "WHERE b.kind=? AND b.personal=0 AND b.result IS NOT NULL GROUP BY b.placed_at, COALESCE(p.group_id, p.id) ORDER BY t, MIN(b.id)", (kind,))
         run, out = 0, []
         for r in rows:
             run += r["pr"] or 0
@@ -288,7 +288,7 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
     CEO-recommended vs. your own calls."""
     from zoneinfo import ZoneInfo
     tz = ZoneInfo(settings.timezone)
-    rows = db.all("SELECT b.pick_id, b.agent, b.stake_cents, b.price, b.result, b.profit_cents, b.placed_at, b.settled_at, b.book, "
+    rows = db.all("SELECT b.pick_id, b.agent, b.stake_cents, b.price, b.result, b.profit_cents, b.placed_at, b.settled_at, b.book, b.personal, "
                   "p.home, p.away, p.market, p.selection, p.point, p.player, p.commence, p.sport, p.real_pick, p.ceo_rank, p.clv, "
                   "p.board_status, p.local_day, p.event_id, p.legs, p.close_price, p.close_fair FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' ORDER BY b.placed_at DESC, b.id")
     groups: dict[tuple, dict] = {}
@@ -300,7 +300,7 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
                 "id": r["pick_id"], "bet": describe({**r}).rsplit(" ", 1)[0], "price": r["price"], "price_txt": om.fmt(r["price"]),
                 "book": book_name(r["book"] or "bovada"), "game": f"{r['away']} @ {r['home']}", "sport": short(r["sport"]) if r["market"] != "parlay" else "Parlay",
                 "commence": r["commence"], "placed_at": r["placed_at"], "result": r["result"], "stake": 0.0, "profit": 0.0,
-                "agents": [], "recommended": False, "ceo_rank": None, "clv": r["clv"],
+                "agents": [], "recommended": False, "ceo_rank": None, "clv": r["clv"], "personal": bool(r["personal"]),
                 "placed_day": parse(r["placed_at"]).astimezone(tz).date().isoformat(),
                 "needs": needs(r["market"], r["selection"], r["point"], r["sport"], r.get("player")),
                 "games": [{"game": f"{r['away']} @ {r['home']}", "commence": r["commence"], "sport": short(r["sport"]), "leg": None, "event_id": r["event_id"], "pick_id": r["pick_id"]}],
@@ -357,8 +357,14 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
                 "open_stake": round(sum(b["stake"] for b in items if b["status"] == "open"), 2),
                 "open_to_win": round(sum(b["to_win"] for b in items if b["status"] == "open"), 2)}
 
-    return {"bets": bets, "all": tally(bets), "ceo": tally([b for b in bets if b["recommended"]]),
-            "mine": tally([b for b in bets if not b["recommended"]]),
+    # personal bets are logged and graded like any other, but kept out of every record
+    counted = [b for b in bets if not b["personal"]]
+    everything, mine_only = tally(bets), tally([b for b in bets if b["personal"]])
+    overall = tally(counted)
+    overall.update(open=everything["open"], open_stake=everything["open_stake"], open_to_win=everything["open_to_win"],  # money riding is money riding
+                   open_personal=mine_only["open_stake"])
+    return {"bets": bets, "all": overall, "ceo": tally([b for b in counted if b["recommended"]]),
+            "mine": tally([b for b in counted if not b["recommended"]]), "personal": mine_only,
             "today_placed": sum(b["placed_day"] == day for b in bets)}
 
 

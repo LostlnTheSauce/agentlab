@@ -158,6 +158,8 @@ a{color:var(--teal)}
 .brow .amt{font:20px var(--f-data);text-align:right;white-space:nowrap}
 .brow .amt small{display:block;font:10px var(--f-display);color:var(--quiet);letter-spacing:.04em}
 .tag{font:9px var(--f-display);letter-spacing:.05em;padding:1px 5px;border:1px solid;margin-left:4px;white-space:nowrap}
+.tag.personal{color:#e7c6ff;border-color:#6a4c86}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:8px 0;cursor:pointer} .chk input{margin-top:2px;width:18px;height:18px;flex:none}
 .tag.ceo{color:var(--amber-ink);background:var(--amber);border-color:var(--amber)} .tag.own{color:var(--teal);border-color:#2f6b5f}
 /* slate */
 .memo{border:2px solid var(--amber);background:#1a170c;padding:12px 14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start}
