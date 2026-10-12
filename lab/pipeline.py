@@ -71,6 +71,7 @@ def dedupe_open(db: DB) -> int:
 
 RESCAN_WINDOW_H = 6.5   # a rescan refreshes games starting in the next few hours (11:00 and 15:00 cover the day)
 RESCAN_RESERVE = 3      # credits held back per rescan still to come today (one sport's prices)
+SLATE_MIN = 9           # credits the morning slate may always spend (three sports), reserve or not
 
 
 class Lab:
@@ -134,6 +135,8 @@ class Lab:
         cands, fetched, notes = [], [], []
         active = self._active_sports()
         reserve = self._reserve(now)  # leave room for the rescans still to come today
+        if kind == "slate":  # but never starve the morning slate: it always gets its first few sports
+            reserve = min(reserve, max(0, self.odds.cap() - self.odds.credits_today() - SLATE_MIN))
         sports = list(self.s.sports)
         if kind != "slate":  # a rescan refreshes what kicks off next, soonest first, while credits last
             first = {sp: self._next_game(sp, now, hours=RESCAN_WINDOW_H) for sp in sports}
@@ -476,6 +479,7 @@ class Lab:
         if lock and parse(lock) > now - timedelta(minutes=25):
             return ["locked"]
         self.db.put("tick_lock", iso(now))
+        self.db.put("last_tick", iso(now))
         did = []
         try:
             if dedupe_open(self.db):
@@ -523,6 +527,11 @@ class Lab:
                 from . import cooler
                 if self.db.one("SELECT 1 FROM picks WHERE result IS NOT NULL AND graded_at>?", (iso(now - timedelta(hours=20)),)):
                     cooler.chat(self, "evening", day)
+            try:
+                from . import health
+                did += [f"alert:{c}" for c in health.check(self, now)]
+            except Exception:
+                log.exception("health check failed")
             if hour >= self.s.backup_hour and self.db.get("last_backup") != day:
                 from .backup import backup
                 backup(self.s.db_path, day)

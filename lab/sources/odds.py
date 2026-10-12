@@ -46,7 +46,7 @@ def is_soccer(sport: str) -> bool:
 
 def daily_cap(settings, db: DB, now=None) -> int:
     """Today's credit budget. The free plan is a monthly allowance, so quiet weekdays leave room for busy weekends:
-    what's left this month spread over the days left, never more than double the configured cap, never under 4."""
+    what's left this month spread over the days left, never more than double the configured cap, never under 6."""
     base = settings.daily_credit_cap
     row = db.one("SELECT remaining FROM credits WHERE remaining IS NOT NULL ORDER BY id DESC LIMIT 1")
     if not row or base >= 1000:
@@ -54,7 +54,7 @@ def daily_cap(settings, db: DB, now=None) -> int:
     now = now or utcnow()
     days_left = calendar.monthrange(now.year, now.month)[1] - now.day + 1
     spent = db.one("SELECT COALESCE(SUM(cost),0) AS c FROM credits WHERE local_day=?", (local_day(settings.timezone, now),))["c"]
-    return int(max(4, min(base * 2, (row["remaining"] + spent) / days_left)))
+    return int(max(6, min(base * 2, (row["remaining"] + spent) / days_left)))
 
 
 class OddsClient:

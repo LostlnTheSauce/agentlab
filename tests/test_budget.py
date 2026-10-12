@@ -35,7 +35,7 @@ class Budget(unittest.TestCase):
         self._left(2000)
         self.assertEqual(daily_cap(self.s, self.db, NOW), 32)   # never more than double
         self._left(40)
-        self.assertEqual(daily_cap(self.s, self.db, NOW), 4)    # nearly out: stretch it, but keep one sport alive
+        self.assertEqual(daily_cap(self.s, self.db, NOW), 6)    # nearly out: stretch it, but keep two sports alive
 
     def test_reserve_holds_credits_back_for_the_rescans(self):
         calls = []

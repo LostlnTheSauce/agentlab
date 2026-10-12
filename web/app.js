@@ -205,7 +205,9 @@ function slate(){
   const order=p=>(p.real_pick?0:10)+(p.ceo_rank||0)+({cleared:20,flagged:30,vetoed:40}[p.board]||50);
   const list=today.filter(f).sort((a,b)=>order(a)-order(b)||(b.edge||0)-(a.edge||0));
   const cards=$('cards');cards.innerHTML='';
-  if(!list.length)cards.innerHTML=`<div class="empty">${today.length?'Nothing in this filter.':`No picks yet today. The slate runs at ${S.config.slate_hour}:00 (${esc(S.config.tz)}), or run it now from the Ledger tab.`}</div>`;
+  const sl=(S.health||{}).slate;
+  if(!list.length)cards.innerHTML=`<div class="empty">${today.length?'Nothing in this filter.':sl&&sl.why?esc(sl.why)+' You can try again from MY BETS, Behind the scenes, Redo today\u2019s slate.'
+    :`No picks yet today. The slate runs at ${S.config.slate_hour}:00 (${esc(S.config.tz)}).`}</div>`;
   list.forEach(p=>cards.appendChild(card(p)));
   const oc=$('openCards');oc.innerHTML='';
   const mine=open.filter(p=>p.decision==='placed'||p.real_pick),paper=open.filter(p=>!(p.decision==='placed'||p.real_pick)&&p.board!=='vetoed');
@@ -632,8 +634,13 @@ function ticker(){
   const items=S.feed.slice(0,14).map(f=>(f.agent?names[f.agent]+': ':'')+f.text);
   $('ticker').textContent=(items.length?items.join(' · '):'Quiet on the floor.')+' · Paper bets, real odds. You place real money yourself. ·';
 }
+function healthBanner(){
+  const h=$('health'),list=(S.health||{}).issues||[];
+  h.hidden=!list.length;
+  h.innerHTML=list.length?`<b>NEEDS ATTENTION</b>${list.map(i=>`<div>${esc(i.text)}</div>`).join('')}`:'';
+}
 function render(){
-  if(!S)return;
+  if(!S)return;healthBanner();
   header();office();slate();tipsters();ledgerView();ticker();
   if(!$('sheet').hidden){const n=$('sheetNm').textContent;const all=[...S.roster.tipsters,...Object.values(S.roster.staff)];const w=all.find(a=>a.name.toUpperCase()===n);if(w)openSheet(w.id)}
 }

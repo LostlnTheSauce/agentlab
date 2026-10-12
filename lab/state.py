@@ -10,6 +10,7 @@ from . import ledger
 from . import oddsmath as om
 from .agents import describe
 from .db import DB, iso, local_day, parse, utcnow
+from . import health
 from .board import pick_kind
 from .sources.espn import web_link
 from .explain import needs
@@ -172,6 +173,8 @@ def build_state(settings, db: DB) -> dict:
         "paper": {**totals("paper"), "seeded": seeded, "balance": round(sum(paper_w.values()), 2), "clv": clv["c"], "clv_n": clv["n"], "equity": equity("paper")},
         "real": {**totals("real"), "seeded": seeded, "balance": round(sum(real_w.values()), 2), "equity": equity("real"), "bets": list(grouped.values())},
         "mine": my_bets(db, settings, names, day),
+        "health": {"issues": [{"code": i["code"], "text": i["text"]} for i in health.issues(db, settings, now)],
+                   "slate": health.slate_today(db, settings, now)},
         "credits": {"today": today_credits, "cap": daily_cap(settings, db), "remaining": credit.get("remaining"), "used": credit.get("used")},
         "claude": {"today": round(spend["today"], 2), "week": round(spend["week"], 2), "per_day": round(spend["week"] / 7, 2),
                    "tipster_model": settings.tipster_model, "ceo_model": settings.ceo_model},
