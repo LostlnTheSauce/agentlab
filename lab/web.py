@@ -66,7 +66,8 @@ def create_app(settings=None, db: DB | None = None) -> Flask:
     @app.before_request
     def gate():
         p = request.path
-        if p in ("/login", "/login.css", "/login.js", "/favicon.svg", "/healthz"):
+        if p in ("/login", "/login.css", "/login.js", "/favicon.svg", "/healthz",
+                 "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"):  # the phone fetches these signed out
             return None
         if not authed():
             if p.startswith("/api/"):
@@ -114,8 +115,8 @@ def create_app(settings=None, db: DB | None = None) -> Flask:
 
     @app.get("/<path:name>")
     def static_file(name):
-        if name in ("app.js", "style.css", "office.js", "login.css", "login.js", "favicon.svg"):
-            return send_from_directory(WEB, name)
+        if name in ("app.js", "style.css", "office.js", "login.css", "login.js", "favicon.svg", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"):
+            return send_from_directory(WEB, name, mimetype="application/manifest+json" if name.endswith(".webmanifest") else None)
         return jsonify(error="Not found"), 404
 
     @app.get("/api/state")
@@ -173,6 +174,26 @@ def create_app(settings=None, db: DB | None = None) -> Flask:
             return jsonify(recheck(s, db, pick_id))
         except (ValueError, BudgetError, SourceError) as e:
             return jsonify(error=str(e)), 400
+
+    @app.get("/api/backup")
+    def backup_download():
+        """A fresh copy of the database to save off the server. The login password is left out of the copy."""
+        import sqlite3
+        import tempfile
+        from flask import send_file
+        from .backup import backup
+        from .db import local_day
+        day = local_day(s.timezone)
+        tmp = backup(s.db_path, "download", keep=10_000, folder=tempfile.gettempdir())
+        con = sqlite3.connect(tmp)
+        try:
+            con.execute("DELETE FROM kv WHERE key IN ('password_hash', 'tick_lock')")
+            con.commit()
+            con.execute("VACUUM")
+        finally:
+            con.close()
+        db.put("last_backup_download", iso())
+        return send_file(tmp, as_attachment=True, download_name=f"agentlab-{day}.sqlite3", mimetype="application/octet-stream", max_age=0)
 
     @app.post("/api/alert-test")
     def alert_test():

@@ -181,7 +181,7 @@ def build_state(settings, db: DB) -> dict:
         "needs_grading": [s["id"] for s in stale],
         "config": {"unit": settings.unit_dollars, "wallet": settings.wallet_dollars, "max_real": settings.max_real_per_day,
                    "llm": settings.llm_enabled, "odds": bool(settings.odds_api_key), "alerts": bool(settings.ntfy_topic),
-                   "slate_hour": settings.slate_hour, "rescan_hours": settings.rescan_hours, "tz": settings.timezone,
+                   "last_backup_download": db.get("last_backup_download"), "slate_hour": settings.slate_hour, "rescan_hours": settings.rescan_hours, "tz": settings.timezone,
                    "sports": [short(x) for x in settings.sports], "meeting_hour": settings.meeting_hour,
                    "books": [{"key": k, "name": book_name(k)} for k in settings.my_books]},
     }

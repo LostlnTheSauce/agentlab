@@ -671,6 +671,8 @@ function ledgerView(){
   const cf=S.config;
   $('rules').innerHTML=`<div class="btnrow" style="margin:0 0 8px"><button class="toggle ${quickBet?'on':''}" id="qbToggle">QUICK BET: ${quickBet?'ON':'OFF'}</button></div>
     ${cf.alerts?'<div class="btnrow" style="margin:0 0 8px"><button id="alertTest">SEND TEST ALERT</button></div>':''}
+    <div class="btnrow" style="margin:0 0 4px"><a class="golink" href="api/backup" download>DOWNLOAD A BACKUP</a></div>
+    <p class="q" style="margin:0 0 8px;font-size:11px">Saves every pick, bet and result to this device, so there is a copy off the server. ${cf.last_backup_download?'Last downloaded '+ago(cf.last_backup_download)+'.':'Never downloaded yet.'} The server also keeps its own nightly copies for 14 days.</p>
     <p class="q" style="margin:0 0 8px;font-size:11px">${quickBet?'BET checks live prices at your books (1 credit) and links straight to the game.':'BET opens the plain manual dialog.'}</p>
     <p style="margin:0 0 6px">1 unit = ${money(cf.unit)}. Each tipster has a ${money(cf.wallet)} real wallet. The CEO recommends at most ${cf.max_real} real bets a day. Nobody bets without a Bovada price that beats the sharp consensus.</p>
     <p class="q" style="margin:0">Slate at ${cf.slate_hour}:00, rescans at ${cf.rescan_hours.map(h=>h+':00').join(' and ')} (${esc(cf.tz)}). Sports: ${esc(cf.sports.join(', '))}. Claude: ${cf.llm?'on':'off (fallback)'}. Phone alerts: ${cf.alerts?'on':'off'}.</p>`;

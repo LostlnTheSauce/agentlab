@@ -8,8 +8,8 @@ from pathlib import Path
 KEEP = 14
 
 
-def backup(db_path: Path, day: str, keep: int = KEEP) -> Path:
-    folder = db_path.parent / "backups"
+def backup(db_path: Path, day: str, keep: int = KEEP, folder: Path | str | None = None) -> Path:
+    folder = Path(folder) if folder else db_path.parent / "backups"
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / f"{db_path.stem}-{day}.sqlite3"
     src = sqlite3.connect(db_path)
