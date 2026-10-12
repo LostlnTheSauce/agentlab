@@ -153,6 +153,7 @@ function card(p){
   chips.push(p.kind==='price'?'<span class="pill pricepick" title="Your book pays at least the fair price. Eligible for real money.">PRICE PICK</span>'
     :'<span class="pill storypick" title="Rides on the tipster\'s read at a normal bookmaker price. Paper unless you decide otherwise.">STORY PICK</span>');
   if(p.real_pick)chips.push(`<span class="pill real">REAL $${p.ceo_rank?' #'+p.ceo_rank:''}</span>`);
+  if(!p.result&&p.decision!=='placed'){const ex=exposure(p);if(ex.length)chips.push(`<span class="pill expo" title="You already have money on this game">${money(ex.reduce((s,x)=>s+x.stake,0))} ON THIS GAME</span>`)}
   if(p.late)chips.push('<span class="pill late">LATE</span>');
   if(!p.decision&&!p.result)chips.push(`<span class="pill ${p.board}">${p.board.toUpperCase()}</span>`);
   if(p.paper_only&&!p.decision)chips.push('<span class="pill paper">PAPER ONLY</span>');
@@ -249,8 +250,24 @@ $('placeBooks').addEventListener('click',e=>{const b=e.target.closest('button[da
   const q=(placing.prices||[]).find(x=>x.book===placeBook);if(q)$('placePrice').value=q.txt.replace('−','-');renderBooks(placing);setLink(placing.links||{});checkPlace()});
 const parsePrice=s=>{const m=String(s).trim().replace('−','-').match(/^([+-]?)(\d{3,5})$/);if(!m)return null;const v=parseInt(m[2],10)*(m[1]==='-'?-1:1);return Math.abs(v)>=100?v:null};
 const dec=a=>a>0?1+a/100:1+100/-a;
+/* what you already have riding on this game (straight bets and parlay legs), so nothing doubles up by accident */
+function exposure(p){
+  if(!S.mine||!p.event_id)return [];
+  const out=[];
+  S.mine.bets.filter(b=>b.status==='open'&&b.id!==p.id).forEach(b=>(b.games||[]).forEach(g=>{
+    if(g.event_id!==p.event_id||g.leg_result)return;
+    const what=g.leg||b.bet;
+    out.push({what,parlay:!!g.leg,stake:b.stake,book:b.book,same:what===p.bet,price:g.leg?'':b.price_txt})}));
+  return out;
+}
+function expoHtml(p){
+  const ex=exposure(p);if(!ex.length)return '';
+  const total=ex.reduce((s,x)=>s+x.stake,0),same=ex.some(x=>x.same);
+  return `<b>ALREADY RIDING ON THIS GAME: ${money(total)}</b>${ex.map(x=>`<div>${money(x.stake)} ${x.parlay?'parlay leg: ':''}${esc(x.what)} ${esc(x.price)} <span class="q">· ${esc(x.book)}</span></div>`).join('')}
+    <div class="q">${same?'One of those is this exact bet. Adding more doubles what you win or lose on it.':'These win or lose on the same game, so they are not independent bets.'}</div>`;
+}
 function openPlace(p){
-  placing=p;
+  placing=p;const ex=expoHtml(p);$('placeExpo').hidden=!ex;$('placeExpo').innerHTML=ex;
   $('placeWhat').textContent=`${p.bet} ${p.price_txt}`;$('placeNeeds').textContent=p.needs||'';
   placeBook=p.book||'bovada';renderBooks(p);$('placePersonal').checked=false;
   $('placeSteps').innerHTML=[`Open <b>${esc(p.book_name||'Bovada')}</b> → ${esc(p.league)} → <b>${esc(p.game)}</b>.`,`Find <b>${esc(p.bet)}</b>. It was ${esc(p.price_txt)} when picked.`,

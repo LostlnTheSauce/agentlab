@@ -27,10 +27,30 @@ def american_from_prob(p: float) -> int:
 
 
 def no_vig(prices: list[int]) -> list[float]:
-    """Strip the bookmaker margin proportionally from a complete market."""
+    """Strip the bookmaker margin from a complete market using Shin's method.
+
+    Books don't spread their cut evenly; they shade longshots harder than favorites. Dividing every side by the same
+    total (the proportional method) therefore leaves big underdogs looking likelier than they are, which made their
+    "edge" look better than it was. Shin's model treats part of the margin as protection against informed money, which
+    takes more of it out of the longshot. On an even market (-110 / -110) the two methods agree exactly."""
     raw = [implied(p) for p in prices]
     total = sum(raw)
-    return [r / total for r in raw]
+    if len(raw) < 2 or total <= 1 + 1e-9 or min(raw) <= 0:
+        return [r / total for r in raw]
+
+    def shin(z: float) -> list[float]:
+        return [(math.sqrt(z * z + 4 * (1 - z) * r * r / total) - z) / (2 * (1 - z)) for r in raw]
+
+    lo, hi = 0.0, 0.4  # z: the share of informed money; the probabilities sum to more than 1 at z=0 and fall as z grows
+    for _ in range(60):
+        z = (lo + hi) / 2
+        if sum(shin(z)) > 1:
+            lo = z
+        else:
+            hi = z
+    out = shin((lo + hi) / 2)
+    t = sum(out)
+    return [o / t for o in out]
 
 
 def edge(fair_prob: float, american: int) -> float:

@@ -272,6 +272,9 @@ td.n{font:19px var(--f-data)}
 .status{font:10px var(--f-display);padding:2px 5px;border:1px solid}
 .health{border:2px solid var(--loss);background:#2a1512;padding:8px 12px;margin-bottom:10px;font-size:13px;display:grid;gap:4px}
 .health>b{font:10px var(--f-display);letter-spacing:.08em;color:var(--loss);font-weight:400}
+.expo{border:2px solid var(--amber);background:#1a170c;padding:8px 10px;font-size:12px;display:grid;gap:3px;margin:6px 0}
+.expo>b{font:10px var(--f-display);letter-spacing:.06em;color:var(--amber);font-weight:400}
+.pill.expo{color:var(--amber);border-color:#6b5a36;background:none;padding:3px 6px;margin:0;display:inline;font-size:10px}
 .cashsplit{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:12px}
 .cashsplit b{font:10px var(--f-display);letter-spacing:.06em;color:var(--quiet);font-weight:400;margin-right:4px}
 .tiptools{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:8px}

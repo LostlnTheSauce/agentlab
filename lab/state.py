@@ -27,7 +27,7 @@ def pick_view(p: dict, ctx: dict, members: dict, real: dict, settings, names: di
     lead = p["group_id"] or p["id"]
     rb = real.get(p["id"])
     return {
-        "id": p["id"], "agent": p["agent"], "created_at": p["created_at"], "agent_name": names.get(p["agent"], {}).get("name", p["agent"]),
+        "id": p["id"], "event_id": p["event_id"], "agent": p["agent"], "created_at": p["created_at"], "agent_name": names.get(p["agent"], {}).get("name", p["agent"]),
         "sport": short(p["sport"]), "league": LEAGUE.get(p["sport"], short(p["sport"])),
         "game": f"{p['away']} @ {p['home']}", "commence": p["commence"], "bet": describe(p).rsplit(" ", 1)[0],
         "needs": needs(p["market"], p["selection"], p["point"], p["sport"], p.get("player")),

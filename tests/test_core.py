@@ -43,6 +43,14 @@ class OddsMath(unittest.TestCase):
     def test_no_vig_and_edge(self):
         p = om.no_vig([-110, -110])
         self.assertAlmostEqual(p[0], 0.5)
+        # a lopsided market: the longshot gives up more of the bookmaker's cut than a flat split would take
+        fav, dog = om.no_vig([-900, 550])
+        flat = om.implied(550) / (om.implied(-900) + om.implied(550))
+        self.assertAlmostEqual(fav + dog, 1.0)
+        self.assertLess(dog, flat)
+        self.assertGreater(dog, 0.10)
+        three = om.no_vig([150, 230, 210])  # a soccer three-way still sums to one
+        self.assertAlmostEqual(sum(three), 1.0)
         self.assertAlmostEqual(om.edge(0.5, -110), -0.04545, places=4)
         self.assertAlmostEqual(om.edge(0.55, 100), 0.10)
 
