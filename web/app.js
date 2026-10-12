@@ -12,8 +12,8 @@ const ago=iso=>{const s=(Date.now()-new Date(iso))/1000;return s<90?Math.round(s
 
 let seenPicks={};try{seenPicks=JSON.parse(localStorage.getItem('lab-seen-picks')||'{}')}catch(e){}
 let quickBet=true;try{quickBet=localStorage.getItem('lab-quickbet')!=='off'}catch(e){}
-let openPaper=false,S=null,mode='real',view='office',filt='all',sortKey='units',fetchedAt=0,people={};
-try{mode=localStorage.getItem('lab-mode2')||'real';view=localStorage.getItem('lab-view')||'office'}catch(e){}
+let openPaper=false,S=null,mode='real',view='today',filt='all',sortKey='units',fetchedAt=0,people={};
+try{mode=localStorage.getItem('lab-mode2')||'real';view=localStorage.getItem('lab-view2')||'today'}catch(e){}
 
 async function api(path,body){
   const opt=body?{method:'POST',headers:{'Content-Type':'application/json','X-Lab':'1'},body:JSON.stringify(body)}:{};
@@ -33,9 +33,9 @@ setInterval(load,30000);
 /* live scores for games you have money on, only while MY BETS is open */
 let LIVE={games:{},picks:{}},liveBusy=false,liveAt=0;
 async function loadLive(){
-  if(view!=='ledger'||document.hidden||liveBusy||!S||Date.now()-liveAt<50000)return;
+  if((view!=='ledger'&&view!=='today')||document.hidden||liveBusy||!S||Date.now()-liveAt<50000)return;
   if(!S.mine.bets.some(b=>b.status==='open'&&(b.games||[]).some(g=>new Date(g.commence)<=Date.now()+6e5)))return;
-  liveBusy=true;liveAt=Date.now();try{const L=await api('api/live');LIVE={games:L.games||{},picks:L.picks||{}};myBetsView()}catch(e){}finally{liveBusy=false}
+  liveBusy=true;liveAt=Date.now();try{const L=await api('api/live');LIVE={games:L.games||{},picks:L.picks||{}};myBetsView();todayView()}catch(e){}finally{liveBusy=false}
 }
 setInterval(loadLive,60000);document.addEventListener('visibilitychange',loadLive);
 setInterval(()=>{if(!S)return;const busy=S.runs.some(r=>r.status==='running');$('live').className='live'+(busy?' busy':'')+(Date.now()-fetchedAt>90000?' stale':'');
@@ -501,6 +501,43 @@ function myBetsView(){
     x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog(e)}}});
 }
 
+/* ---------------------------------------------------------------- today: what to bet, what's live, what just settled */
+function todayView(){
+  const box=$('today');if(!box||!S.mine)return;
+  const now=Date.now(),M=S.mine;
+  $('todayDate').textContent=new Date().toLocaleDateString([], {weekday:'long',month:'short',day:'numeric'});
+  const toBet=S.picks.filter(p=>p.real_pick&&!p.decision&&!p.result&&new Date(p.commence)>now).sort((a,b)=>(a.ceo_rank||9)-(b.ceo_rank||9));
+  const todayPicks=S.picks.filter(p=>p.local_day===S.day&&p.board!=='vetoed');
+  const endOfDay=new Date();endOfDay.setHours(27,0,0,0);  // through 3 AM, so late West Coast games count as tonight
+  const open=M.bets.filter(b=>b.status==='open');
+  const mine=open.filter(b=>(b.games||[]).some(g=>!g.leg_result&&new Date(g.commence)<endOfDay));
+  const later=open.length-mine.length;
+  const done=M.bets.filter(b=>b.status!=='open'&&b.settled_at&&now-new Date(b.settled_at)<24*36e5).sort((a,b)=>b.settled_at.localeCompare(a.settled_at));
+  const net=done.reduce((s,b)=>s+(b.personal?0:b.profit),0),sl=(S.health||{}).slate;
+  const sched=scheduleHtml(mine);
+  box.innerHTML=`${glance()}
+    <div class="h2">BET NOW ${toBet.length?`<span class="q" style="font:11px var(--f-body);letter-spacing:0">· ${toBet.length} recommended for cash</span>`:''}</div>
+    <div class="cards" id="todayCards"></div>
+    ${toBet.length?'':`<div class="empty">${sl&&sl.why?esc(sl.why):todayPicks.length?`No cash recommendations right now. ${todayPicks.length} pick${todayPicks.length===1?' is':'s are'} on the Slate; the price isn't good enough on any of them to recommend.`
+      :sl?'Nothing on the Slate today.':`The desks pick at ${S.config.slate_hour}:00.`} <button class="linkbtn" data-goto="slate">Open the Slate</button></div>`}
+    <div class="h2">YOUR GAMES TODAY ${mine.length?`<span class="q" style="font:11px var(--f-body);letter-spacing:0">· ${money(mine.reduce((s,b)=>s+b.stake,0))} riding</span>`:''}</div>
+    ${sched||`<div class="empty">Nothing riding today.${later?` ${later} bet${later===1?'':'s'} on later games are in MY BETS.`:''}</div>`}
+    ${sched&&later?`<div class="q" style="font-size:12px;margin-top:6px">${later} more on later days. <button class="linkbtn" data-goto="ledger">See all in MY BETS</button></div>`:''}
+    <div class="h2">JUST SETTLED ${done.length?`<span class="q" style="font:11px var(--f-body);letter-spacing:0">· last 24 hours · <span class="${cls(net)}">${money(net,true)}</span></span>`:''}</div>
+    ${done.length?`<div class="betlist">${done.map(b=>{const f=(b.games||[]).find(g=>g.final&&!g.leg);
+      return `<div class="brow ${b.status}" style="cursor:default"><span class="st ${b.status}">${b.status.toUpperCase()}</span>
+        <div class="what"><b>${esc(b.bet)} ${esc(b.price_txt)}</b>${b.personal?'<span class="tag personal">PERSONAL</span>':''}${f?`<div class="final">${esc(f.final)}</div>`:''}</div>
+        <div class="amt"><span class="${cls(b.profit)}">${b.status==='push'?'$0.00':money(b.profit,true)}</span></div></div>`}).join('')}</div>
+      <div class="q" style="font-size:12px;margin-top:6px"><button class="linkbtn" data-goto="history">Everything in HISTORY</button></div>`
+      :'<div class="empty">Nothing has settled in the last day.</div>'}
+    <div class="q" style="font-size:12px;margin-top:16px"><button class="linkbtn" data-goto="office">Visit the office</button> · <button class="linkbtn" data-goto="tipsters">Tipster standings</button></div>`;
+  const tc=box.querySelector('#todayCards');toBet.forEach(p=>tc.appendChild(card(p)));
+  box.querySelectorAll('[data-goto]').forEach(x=>x.onclick=()=>show(x.dataset.goto));
+  box.querySelectorAll('.sgame').forEach(x=>{const tog=e=>{if(e.target.closest('a,button'))return;const k=x.dataset.game;openGames.has(k)?openGames.delete(k):openGames.add(k);todayView();myBetsView()};
+    x.onclick=tog;x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tog(e)}}});
+  wirePersonal(box);
+}
+
 /* ---------------------------------------------------------------- history */
 /* fixing a wrong grade: which ESPN game the result came from, and buttons to re-check or set it by hand */
 const fixOpen=new Set();
@@ -657,15 +694,16 @@ function healthBanner(){
   h.innerHTML=list.length?`<b>NEEDS ATTENTION</b>${list.map(i=>`<div>${esc(i.text)}</div>`).join('')}`:'';
 }
 function render(){
-  if(!S)return;healthBanner();
+  if(!S)return;healthBanner();todayView();
   header();office();slate();tipsters();ledgerView();ticker();
   if(!$('sheet').hidden){const n=$('sheetNm').textContent;const all=[...S.roster.tipsters,...Object.values(S.roster.staff)];const w=all.find(a=>a.name.toUpperCase()===n);if(w)openSheet(w.id)}
 }
+const VIEWS=['today','office','slate','tipsters','ledger','history'];
 function show(v){
-  view=v;['office','slate','tipsters','ledger','history'].forEach(k=>$('v-'+k).hidden=k!==v);
+  view=v;VIEWS.forEach(k=>$('v-'+k).hidden=k!==v);
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  Office.show(v==='office');try{localStorage.setItem('lab-view',v)}catch(e){}
-  if(v==='ledger')loadLive();
+  Office.show(v==='office');try{localStorage.setItem('lab-view2',v)}catch(e){}
+  if(v==='ledger'||v==='today')loadLive();
 }
 function setMode(m){mode=m;try{localStorage.setItem('lab-mode2',m)}catch(e){}render()}
 document.querySelector('nav').addEventListener('click',e=>{const b=e.target.closest('button');if(b)show(b.dataset.v)});
@@ -678,6 +716,6 @@ $('zIn').onclick=()=>Office.zoom(1.25);$('zOut').onclick=()=>Office.zoom(0.8);$(
 
 Office.init($('office'),id=>{if(id==='cooler'){openSheet(null);openChat(0)}else{$('chat').hidden=true;openSheet(id)}});
 sprite($('ceoAv'),{shirt:'#f0c281',hair:'#dcdcdc',skin:'#d9a57c'});
-show(['office','slate','tipsters','ledger','history'].includes(view)?view:'office');
+show(VIEWS.includes(view)?view:'today');
 load();
 })();

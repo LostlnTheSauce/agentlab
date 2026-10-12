@@ -303,7 +303,7 @@ def my_bets(db: DB, settings, names: dict, day: str) -> dict:
                 "id": r["pick_id"], "bet": describe({**r}).rsplit(" ", 1)[0], "price": r["price"], "price_txt": om.fmt(r["price"]),
                 "book": book_name(r["book"] or "bovada"), "game": f"{r['away']} @ {r['home']}", "sport": short(r["sport"]) if r["market"] != "parlay" else "Parlay",
                 "commence": r["commence"], "placed_at": r["placed_at"], "result": r["result"], "stake": 0.0, "profit": 0.0,
-                "agents": [], "recommended": False, "ceo_rank": None, "clv": r["clv"], "personal": bool(r["personal"]),
+                "agents": [], "recommended": False, "ceo_rank": None, "clv": r["clv"], "personal": bool(r["personal"]), "settled_at": r["settled_at"],
                 "placed_day": parse(r["placed_at"]).astimezone(tz).date().isoformat(),
                 "needs": needs(r["market"], r["selection"], r["point"], r["sport"], r.get("player")),
                 "games": [{"game": f"{r['away']} @ {r['home']}", "commence": r["commence"], "sport": short(r["sport"]), "leg": None, "event_id": r["event_id"], "pick_id": r["pick_id"]}],

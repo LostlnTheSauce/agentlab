@@ -59,15 +59,19 @@ def issues(db: DB, settings, now: datetime | None = None) -> list[dict]:
     if left and left["remaining"] < LOW_CREDITS:
         out.append({"code": "credits", "push": True, "text": f"Only {left['remaining']} odds credits are left this month, so price checks "
                     "are being rationed until the allowance resets."})
-    seen = set()
+    seen, stuck = set(), []
     for p in db.all("SELECT p.* FROM bets b JOIN picks p ON p.id=b.pick_id WHERE b.kind='real' AND b.result IS NULL AND p.market!='parlay' "
                     "AND p.commence<? ORDER BY p.commence", (iso(now - timedelta(hours=STUCK_HOURS)),)):
         key = (p["event_id"], p["market"], p["selection"], p["point"])
         if key in seen:
             continue
         seen.add(key)
-        out.append({"code": f"stuck:{p['id']}", "push": True, "text": f"{describe(p)} ({p['away']} at {p['home']}) still hasn't settled. ESPN may "
-                    "not have matched the game. Enter the result under MY BETS, Behind the scenes, Needs a result."})
+        stuck.append(p)
+    if stuck:  # one line however many there are; the alert fires again only when a new bet gets stuck
+        names = "; ".join(f"{describe(p)} ({p['away']} at {p['home']})" for p in stuck[:3]) + (f"; and {len(stuck) - 3} more" if len(stuck) > 3 else "")
+        out.append({"code": "stuck:" + stuck[-1]["id"], "push": True,
+                    "text": f"{len(stuck)} bet{'s' if len(stuck) != 1 else ''} still {'have' if len(stuck) != 1 else 'has'}n't settled: {names}. ESPN may not "
+                            "have matched the game. Enter the result under MY BETS, Behind the scenes, Needs a result."})
     return out
 
 
