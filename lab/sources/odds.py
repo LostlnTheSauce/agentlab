@@ -16,18 +16,19 @@ from .http import SourceError, get_json
 
 BASE = "https://api.the-odds-api.com/v4/sports"
 
-# window_h: how far ahead prices are fetched. Picks are made the day of the game, when prices are freshest and
-# credits aren't spent on games days away.
+# window_h: a sport is only fetched (credits spent) on a day it has a game inside this window.
+# ahead_h: once it is fetched, how far ahead the tipsters may look. A fetch costs the same however far it looks, so a
+# longer look-ahead is free; game-day fetches and rescans then refresh those prices before kickoff.
 # length_h: earliest a game could be over; grading starts asking ESPN then (ESPN decides when it's final)
 SPORT_INFO = {
-    "americanfootball_nfl": {"short": "NFL", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2.75},
-    "americanfootball_ncaaf": {"short": "CFB", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2.75},
-    "baseball_mlb": {"short": "MLB", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2},
-    "basketball_nba": {"short": "NBA", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2},
-    "icehockey_nhl": {"short": "NHL", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "length_h": 2},
-    "soccer_epl": {"short": "EPL", "markets": ["h2h", "totals"], "window_h": 20, "length_h": 1.75},
-    "soccer_usa_mls": {"short": "MLS", "markets": ["h2h", "totals"], "window_h": 20, "length_h": 1.75},
-    "soccer_uefa_champs_league": {"short": "UCL", "markets": ["h2h", "totals"], "window_h": 20, "length_h": 1.75},
+    "americanfootball_nfl": {"short": "NFL", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "ahead_h": 96, "length_h": 2.75},
+    "americanfootball_ncaaf": {"short": "CFB", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "ahead_h": 96, "length_h": 2.75},
+    "baseball_mlb": {"short": "MLB", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "ahead_h": 48, "length_h": 2},
+    "basketball_nba": {"short": "NBA", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "ahead_h": 48, "length_h": 2},
+    "icehockey_nhl": {"short": "NHL", "markets": ["h2h", "spreads", "totals"], "window_h": 20, "ahead_h": 48, "length_h": 2},
+    "soccer_epl": {"short": "EPL", "markets": ["h2h", "totals"], "window_h": 20, "ahead_h": 48, "length_h": 1.75},
+    "soccer_usa_mls": {"short": "MLS", "markets": ["h2h", "totals"], "window_h": 20, "ahead_h": 48, "length_h": 1.75},
+    "soccer_uefa_champs_league": {"short": "UCL", "markets": ["h2h", "totals"], "window_h": 20, "ahead_h": 48, "length_h": 1.75},
 }
 PROP_MARKETS = ["player_receptions", "player_reception_yds", "player_pass_yds", "player_rush_yds"]
 
@@ -102,8 +103,8 @@ class OddsClient:
     def odds(self, sport: str, markets: list[str] | None = None, reserve: int = 0) -> list[dict]:
         """`reserve`: credits to leave unspent for something more important later today."""
         markets = markets or SPORT_INFO[sport]["markets"]
-        info = SPORT_INFO.get(sport, {"window_h": 20})
-        until = utcnow() + timedelta(hours=info["window_h"])
+        info = SPORT_INFO.get(sport, {})
+        until = utcnow() + timedelta(hours=info.get("ahead_h", 48))
         params = {
             "bookmakers": self.books_param(), "markets": ",".join(markets),
             "oddsFormat": "american", "dateFormat": "iso", "includeLinks": "true",
