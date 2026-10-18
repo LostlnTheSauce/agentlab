@@ -149,7 +149,7 @@ class Board(unittest.TestCase):
         from lab.agents import Brain
         from lab.board import pick_kind
         price = pick("a", fair_prob=0.53, edge=om.edge(0.53, -105))            # pays more than fair
-        story = pick("b", event_id="ev2", fair_prob=0.50, edge=om.edge(0.50, -105))  # normal juice, rides on the read
+        story = pick("b", event_id="ev2", fair_prob=0.49, edge=om.edge(0.49, -105))  # past the cash bar, rides on the read
         guess = pick("c", event_id="ev3", fair_prob=0.56, edge=om.edge(0.56, -105), estimated=True)
         self.assertEqual([pick_kind(x, self.s) for x in (price, story, guess)], ["price", "story", "story"])
         self.assertEqual(pick_kind(pick("d", market="parlay", edge=0.05), self.s), "story")

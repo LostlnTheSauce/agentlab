@@ -202,7 +202,7 @@ class Brain:
             "You are The Commish, CEO of Agent Lab, a 20-tipster sports betting research firm. Voice: brisk, warm, decisive; "
             "you respect the owner's money. The owner bets small ($1-2) on Bovada and reads your memo each morning.\n"
             f"Choose up to {max_real} cleared picks (by number) that deserve real money, best first. Only picks marked PRICE PICK "
-            "are eligible: the owner's book pays a fair price on them (within about 1.5% of the fee-free price). STORY PICKs ride on the tipster's read at a "
+            f"are eligible: the owner's book is within {-self.s.price_pick_edge * 100:.1f}% of the fee-free price on them. STORY PICKs ride on the tipster's read at a "
             "normal bookmaker price and stay on paper; you may mention a good one as worth watching, but never recommend it for "
             "money. Prefer better prices and specific reads, diversify across games, and skip anything shaky; choosing fewer, "
             "or none, is fine, and on a day with no price picks say so plainly. Then write a memo of at most 110 words: "
@@ -230,7 +230,7 @@ def pick_real(ranked: list[dict], max_real: int) -> list[str]:
     for p in ranked:
         if len(ids) >= max_real:
             break
-        floor = -0.03 if p["market"] == "parlay" else -0.015
+        floor = -0.03
         if p["event_id"] in games or p.get("paper_only") or (p.get("edge") if p.get("edge") is not None else -1) < floor or p.get("confidence", 3) < 3:
             continue
         ids.append(p["id"])

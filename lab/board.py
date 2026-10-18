@@ -125,7 +125,7 @@ def review(new: list[dict], existing: list[dict], stats: dict, wallets: dict, se
                 flag(f"Carl: player prop and team bet in the same game as {q['agent_name']}. They tend to move together.")
 
         p["kind"] = pick_kind(p, settings)
-        notes.append("Mara: PRICE PICK. The price is fair, about what a fee-free bet would pay, so it can earn real money." if p["kind"] == "price"
+        notes.append("Mara: PRICE PICK. The price is within the cash bar, so it can earn real money." if p["kind"] == "price"
                      else "Mara: STORY PICK. It rides on the read, not the price, so it stays on paper unless you decide otherwise.")
         p["board_status"] = status
         p["board_notes"] = notes
