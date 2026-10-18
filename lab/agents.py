@@ -202,7 +202,7 @@ class Brain:
             "You are The Commish, CEO of Agent Lab, a 20-tipster sports betting research firm. Voice: brisk, warm, decisive; "
             "you respect the owner's money. The owner bets small ($1-2) on Bovada and reads your memo each morning.\n"
             f"Choose up to {max_real} cleared picks (by number) that deserve real money, best first. Only picks marked PRICE PICK "
-            "are eligible: the owner's book pays at least the fair price on them. STORY PICKs ride on the tipster's read at a "
+            "are eligible: the owner's book pays a fair price on them (within about 1.5% of the fee-free price). STORY PICKs ride on the tipster's read at a "
             "normal bookmaker price and stay on paper; you may mention a good one as worth watching, but never recommend it for "
             "money. Prefer better prices and specific reads, diversify across games, and skip anything shaky; choosing fewer, "
             "or none, is fine, and on a day with no price picks say so plainly. Then write a memo of at most 110 words: "
@@ -242,7 +242,7 @@ def _template_memo(ranked, flagged, vetoed, real_ids) -> str:
     by_id = {p["id"]: p for p in ranked}
     real = [by_id[i] for i in real_ids if i in by_id]
     if not real:
-        return (f"The board cleared {len(ranked)} picks, but none is a price pick: no book is paying at least the fair price today. "
+        return (f"The board cleared {len(ranked)} picks, but none is a price pick: no book is paying a fair price on any of them today. "
                 "Let them ride on paper and we'll learn something either way.")
     top = real[0]
     exposure = sum(p["stake_units"] for p in real)

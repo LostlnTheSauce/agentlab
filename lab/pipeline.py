@@ -318,8 +318,10 @@ class Lab:
             return job, self.brain.decide(agent, opts, ctx, self._record(agent["id"], stats))
 
         new: list[dict] = []
+        desks: dict[str, list[int]] = {}  # tipster -> [options their filter found, picks made]
         with ThreadPoolExecutor(4) as pool:
-            for (agent, room, _), (chosen, note) in pool.map(think, jobs):
+            for (agent, room, opts), (chosen, note) in pool.map(think, jobs):
+                desks[agent["name"]] = [len(opts), min(len(chosen), room)]
                 for ch in chosen[:room]:
                     new.append(self._make_pick(agent, ch, run_id, day, now, late))
                 if note and not chosen:
@@ -343,7 +345,11 @@ class Lab:
         if kind == "slate":
             from . import cooler
             cooler.chat(self, "morning", day)
+        priced_c = [c for c in cands if c.get("edge") is not None]
+        prices = {"fair_or_better": sum(c["edge"] >= self.s.price_pick_edge for c in priced_c),
+                  "within_3pct": sum(c["edge"] >= -0.03 for c in priced_c), "priced": len(priced_c)}
         return {"fetched": fetched, "notes": notes, "candidates": len(cands), "picks": len(new), "paper_bets": placed,
+                "desks": desks, "prices": prices,
                 "real_recommended": len(memo_ids), "credits_today": self.odds.credits_today()}
 
     def _lydon(self, existing, new, ctx, stats, day, now) -> dict | None:

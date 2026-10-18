@@ -68,7 +68,11 @@ class Health(unittest.TestCase):
 
     def test_slate_is_never_starved_by_the_rescan_reserve(self):
         """A thin daily budget used to leave the 8 AM slate nothing after holding credits for the rescans."""
-        self.db.run("INSERT INTO credits(at,local_day,what,cost,remaining,used) VALUES(?,?,?,?,?,?)", (iso(NOW), "2026-10-01", "x", 0, 150, 350))
+        import calendar
+        from lab.db import utcnow
+        today = utcnow()
+        days_left = calendar.monthrange(today.year, today.month)[1] - today.day + 1
+        self.db.run("INSERT INTO credits(at,local_day,what,cost,remaining,used) VALUES(?,?,?,?,?,?)", (iso(NOW), "2026-10-01", "x", 0, 7 * days_left, 350))
         calls = []
 
         class Espn:
@@ -77,7 +81,7 @@ class Health(unittest.TestCase):
 
         odds = OddsClient(self.s, self.db, transport=lambda url: (calls.append(url) or [], {"x-requests-last": "3", "x-requests-remaining": "147"}))
         lab = Lab(self.s, self.db, odds=odds, brain=Brain(self.s), espn=Espn())
-        self.assertLess(odds.cap(), 9)                                    # 150 credits over 21 days: about 7 a day
+        self.assertLess(odds.cap(), 9)                                    # about 7 credits a day for the rest of the month
         lab.db.put("active_sports", {"at": iso(), "keys": list(self.s.sports)})
         _, fetched, notes = lab.fetch_prices("slate", datetime(2026, 10, 11, 13, tzinfo=timezone.utc))
         self.assertEqual(fetched, ["americanfootball_nfl"], notes)

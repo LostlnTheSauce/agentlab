@@ -150,7 +150,7 @@ function card(p){
   const chips=[];
   if(p.result)chips.push(`<span class="pill ${p.result}">${p.result.toUpperCase()}</span>`);
   if(p.decision)chips.push(`<span class="pill ${p.decision}">${p.decision.toUpperCase()}</span>`);
-  chips.push(p.kind==='price'?'<span class="pill pricepick" title="Your book pays at least the fair price. Eligible for real money.">PRICE PICK</span>'
+  chips.push(p.kind==='price'?'<span class="pill pricepick" title="Your book pays a fair price (within about 1.5% of the fee-free price). Eligible for real money.">PRICE PICK</span>'
     :'<span class="pill storypick" title="Rides on the tipster\'s read at a normal bookmaker price. Paper unless you decide otherwise.">STORY PICK</span>');
   if(p.real_pick)chips.push(`<span class="pill real">REAL $${p.ceo_rank?' #'+p.ceo_rank:''}</span>`);
   if(!p.result&&p.decision!=='placed'){const ex=exposure(p);if(ex.length)chips.push(`<span class="pill expo" title="You already have money on this game">${money(ex.reduce((s,x)=>s+x.stake,0))} ON THIS GAME</span>`)}
@@ -666,7 +666,9 @@ function ledgerView(){
     <p class="q" style="margin:0;font-size:12px">About ${money(cl.per_day)} a day on average, so $10 lasts ${cl.per_day>0?'about '+Math.round(10/cl.per_day)+' days':'a while'}. Tipsters: ${esc(cl.tipster_model)}. CEO: ${esc(cl.ceo_model)}.</p>`
     :'<p class="q" style="margin:0;font-size:12px">Claude is off. Add ANTHROPIC_API_KEY to .env to give the tipsters real judgment; until then they use rule-based reasoning.</p>';
   $('runs').innerHTML=S.runs.length?S.runs.map(r=>{const d=r.detail||{};const bits=[d.picks!=null?`${d.picks} picks`:'',d.real_recommended?`${d.real_recommended} real`:'',d.llm&&d.llm.calls?`${d.llm.calls} Claude calls`:'',...(d.notes||[]).slice(0,2),d.error||''].filter(Boolean);
-    return `<div class="li"><div><b>${esc(r.kind.toUpperCase())}</b><div class="g">${esc(bits.join(' · ')||'—')}</div></div><div class="r ${r.status==='error'?'down':r.status==='ok'?'up':'q'}" style="font-size:16px">${esc(r.status)}<div class="g">${ago(r.started_at)}</div></div></div>`}).join('')
+    const desks=Object.entries(d.desks||{}).sort((a,b)=>b[1][0]-a[1][0]).map(([n,[o,k]])=>`${n} ${o}→${k}`).join(', ');
+    const px=d.prices?`${d.prices.fair_or_better} of ${d.prices.priced} prices were fair or better`:'';
+    return `<div class="li"><div><b>${esc(r.kind.toUpperCase())}</b><div class="g">${esc(bits.join(' · ')||'—')}</div>${px?`<div class="g">${esc(px)}</div>`:''}${desks?`<div class="g">Options → picks: ${esc(desks)}</div>`:''}</div><div class="r ${r.status==='error'?'down':r.status==='ok'?'up':'q'}" style="font-size:16px">${esc(r.status)}<div class="g">${ago(r.started_at)}</div></div></div>`}).join('')
     :'<div class="q">No runs yet.</div>';
   const cf=S.config;
   $('rules').innerHTML=`<div class="btnrow" style="margin:0 0 8px"><button class="toggle ${quickBet?'on':''}" id="qbToggle">QUICK BET: ${quickBet?'ON':'OFF'}</button></div>

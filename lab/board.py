@@ -27,7 +27,7 @@ def price_grade(edge: float) -> tuple[str, str]:
 
 
 def pick_kind(p: dict, settings) -> str:
-    """"price": the price itself is the reason (your book pays at least the no-vig fair price, measured against real
+    """"price": the price is fair (your best book is within settings.price_pick_edge of the no-vig price, measured against real
     quotes). "story": it rides on the tipster's read (weather, injuries, a hunch) at a normal bookmaker price.
     Only price picks are recommended for real money."""
     edge = p.get("edge")
@@ -125,7 +125,7 @@ def review(new: list[dict], existing: list[dict], stats: dict, wallets: dict, se
                 flag(f"Carl: player prop and team bet in the same game as {q['agent_name']}. They tend to move together.")
 
         p["kind"] = pick_kind(p, settings)
-        notes.append("Mara: PRICE PICK. The price is at least fair on its own, so it can earn real money." if p["kind"] == "price"
+        notes.append("Mara: PRICE PICK. The price is fair, about what a fee-free bet would pay, so it can earn real money." if p["kind"] == "price"
                      else "Mara: STORY PICK. It rides on the read, not the price, so it stays on paper unless you decide otherwise.")
         p["board_status"] = status
         p["board_notes"] = notes
