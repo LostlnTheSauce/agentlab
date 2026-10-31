@@ -22,6 +22,14 @@ LEAGUE = {"americanfootball_nfl": "NFL", "americanfootball_ncaaf": "College foot
           "basketball_nba": "NBA", "soccer_epl": "Premier League", "soccer_usa_mls": "MLS", "soccer_uefa_champs_league": "Champions League"}
 
 
+def parlay_orphaned(db: DB, p: dict) -> bool:
+    """True if a parlay can never settle by itself because a leg's pick no longer exists."""
+    ids = json.loads(p["legs"] or "[]")
+    if not ids:
+        return True
+    return db.one("SELECT COUNT(*) n FROM picks WHERE id IN (%s)" % ",".join("?" * len(ids)), ids)["n"] != len(ids)
+
+
 def pick_view(p: dict, ctx: dict, members: dict, real: dict, settings, names: dict, checks: dict) -> dict:
     notes = json.loads(p["board_notes"] or "[]") if isinstance(p["board_notes"], str) else p["board_notes"]
     lead = p["group_id"] or p["id"]
@@ -165,7 +173,8 @@ def build_state(settings, db: DB) -> dict:
     for m in meetings:
         m["detail"] = json.loads(m["detail"] or "{}")
         m["detail"].pop("week", None)
-    stale = db.all("SELECT id FROM picks WHERE result IS NULL AND commence<?", (iso(now - timedelta(hours=8)),))
+    stale = [r for r in db.all("SELECT id, market, legs FROM picks WHERE result IS NULL AND commence<?", (iso(now - timedelta(hours=8)),))
+             if r["market"] != "parlay" or parlay_orphaned(db, r)]  # a parlay follows its legs; its start time is only the first leg's
 
     return {
         "now": now.isoformat(), "day": day, "roster": roster.public_roster(db), "agents": agents, "meetings": meetings, "cooler": cooler, "picks": views,

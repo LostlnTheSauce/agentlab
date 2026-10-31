@@ -286,6 +286,16 @@ class LedgerAndGrading(unittest.TestCase):
         with self.assertRaises(ValueError):
             ledger.set_personal(self.db, "nope", True)
 
+    def test_parlay_waiting_on_a_later_leg_needs_no_result(self):
+        from lab.state import build_state
+        past, future = iso(NOW - timedelta(days=30)), iso(datetime.now(timezone.utc) + timedelta(hours=5))
+        self.insert(pick("x", commence=past))
+        self.db.run("UPDATE picks SET result='win' WHERE id='x'")
+        self.insert(pick("y", event_id="ev2", commence=future))
+        self.insert(pick("pp", agent="lydon", market="parlay", price=300, commence=past, legs=["x", "y"]))
+        self.insert(pick("gone", agent="lydon", market="parlay", price=300, commence=past, legs=["x", "deleted"]))
+        self.assertEqual(build_state(self.s, self.db)["needs_grading"], ["gone"])
+
     def test_regrade_fixes_money_and_parlays(self):
         self.insert(pick("x", market="h2h", price=150))
         self.insert(pick("x2", agent="rhea", market="h2h", price=150, group_id="x"))   # the same bet from a second tipster
